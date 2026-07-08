@@ -75,23 +75,21 @@ CREATE TABLE ORDEN_TRABAJO (
     CONSTRAINT FK_OT_ORDEN_SERV FOREIGN KEY (id_orden_servicio) REFERENCES ORDEN_SERVICIO(id_orden_servicio)
 );
 
-CREATE TABLE PLANIFICACION_SERVICIO (
-    id_planificacion_servicio INT IDENTITY(1,1) PRIMARY KEY,
-    fecha_programada DATETIME NOT NULL,
-    hora_inicio TIME,
-    estado_plan VARCHAR(50) DEFAULT 'PROGRAMADO',
-    id_orden_trabajo INT,
-    CONSTRAINT FK_PLANIFICACION_OT FOREIGN KEY (id_orden_trabajo) REFERENCES ORDEN_TRABAJO(id_orden_trabajo)
-);
-
 CREATE TABLE UBICACION (
     id_ubicacion INT IDENTITY(1,1) PRIMARY KEY,
     distrito VARCHAR(100),
     provincia VARCHAR(100),
     calle VARCHAR(255),
-    referencia VARCHAR(255),
-    id_planificacion_servicio INT,
-    CONSTRAINT FK_UBICACION_PLANIFICACION FOREIGN KEY (id_planificacion_servicio) REFERENCES PLANIFICACION_SERVICIO(id_planificacion_servicio)
+    referencia VARCHAR(255)
+);
+
+CREATE TABLE PLANIFICACION_SERVICIO (
+    id_planificacion_servicio INT IDENTITY(1,1) PRIMARY KEY,
+    fecha_programada DATETIME NOT NULL,
+    hora_inicio TIME,
+    estado_plan VARCHAR(50) DEFAULT 'PROGRAMADO',
+    id_ubicacion INT,
+    CONSTRAINT FK_PLANIFICACION_UBICACION FOREIGN KEY (id_ubicacion) REFERENCES UBICACION(id_ubicacion)
 );
 
 CREATE TABLE ESPECIALIDAD (
@@ -125,8 +123,8 @@ CREATE TABLE EJECUCION_SERVICIO (
     resultado VARCHAR(100),
     observaciones_ej TEXT,
     mongo_doc_id VARCHAR(50),  -- Referencia a las evidencias (archivos/fotos) en MongoDB
-    id_planificacion INT,
-    CONSTRAINT FK_EJECUCION_PLANIFICACION FOREIGN KEY (id_planificacion) REFERENCES PLANIFICACION_SERVICIO(id_planificacion_servicio)
+    id_planificacion_servicio INT,
+    CONSTRAINT FK_EJECUCION_PLANIFICACION FOREIGN KEY (id_planificacion_servicio) REFERENCES PLANIFICACION_SERVICIO(id_planificacion_servicio)
 );
 
 CREATE TABLE INCIDENTE (

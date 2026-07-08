@@ -13,7 +13,4 @@ public class Ubicacion {
     private String provincia;
     private String calle;
     private String referencia;
-    @ManyToOne
-    @JoinColumn(name = "id_planificacion_servicio")
-    private PlanificacionServicio planificacionServicio;
 }

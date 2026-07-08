@@ -18,6 +18,6 @@ public class EjecucionServicio {
     @Column(name = "mongo_doc_id")
     private String mongoDocId;
     @ManyToOne
-    @JoinColumn(name = "id_planificacion")
+    @JoinColumn(name = "id_planificacion_servicio")
     private PlanificacionServicio planificacionServicio;
 }

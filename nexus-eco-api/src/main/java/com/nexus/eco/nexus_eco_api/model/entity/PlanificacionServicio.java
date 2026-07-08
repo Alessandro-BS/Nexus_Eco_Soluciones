@@ -18,6 +18,6 @@ public class PlanificacionServicio {
     @Column(name = "estado_plan")
     private String estadoPlan = "PROGRAMADO";
     @ManyToOne
-    @JoinColumn(name = "id_orden_trabajo")
-    private OrdenTrabajo ordenTrabajo;
+    @JoinColumn(name = "id_ubicacion")
+    private Ubicacion ubicacion;
 }
