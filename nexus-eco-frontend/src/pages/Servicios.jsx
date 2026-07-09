@@ -1,7 +1,16 @@
 import React, { useState, useEffect } from 'react';
-import { MdClose, MdAssignment, MdSearch, MdEvent, MdDeleteOutline, MdHistory, MdLocalOffer, MdPrint, MdAdd, MdArrowBack } from 'react-icons/md';
-import { FaPlus } from 'react-icons/fa';
-import { getClientes, getEmpleados, getTiposServicio, getOrdenes, createSolicitud, createOrdenServicio } from '../api/api';
+import { 
+    MdClose, MdAssignment, MdSearch, MdEvent, MdDeleteOutline, MdHistory, 
+    MdLocalOffer, MdPrint, MdAdd, MdArrowBack, MdSave, MdVisibility 
+} from 'react-icons/md';
+import { 
+    MdAdd as MdAddIcon, MdArrowBack as MdBackIcon, MdSave as MdSaveIcon, 
+    MdDeleteOutline as MdDeleteIcon, MdVisibility as MdEyeIcon, MdAssignment as MdOrderIcon 
+} from 'react-icons/md';
+import { 
+    getClientes, getEmpleados, getTiposServicio, getOrdenes, 
+    createSolicitud, createOrdenServicio, updateOrdenServicio, deleteOrdenServicio 
+} from '../api/api';
 import './Servicios.css';
 
 const Servicios = () => {
@@ -14,13 +23,18 @@ const Servicios = () => {
     const [tiposServicio, setTiposServicio] = useState([]);
     
     const [loading, setLoading] = useState(false);
+    const [editingId, setEditingId] = useState(null);
+
+    // Details Modal
+    const [showDetailsModal, setShowDetailsModal] = useState(false);
+    const [selectedOrden, setSelectedOrden] = useState(null);
 
     // Form State
     const [solicitud, setSolicitud] = useState({
         idCliente: '',
         fecha: new Date().toISOString().split('T')[0],
         idEmpleado: '',
-        estado: 'EN_PROCESO',
+        estado: 'PENDIENTE',
         descripcion: ''
     });
 
@@ -55,11 +69,10 @@ const Servicios = () => {
                 getEmpleados(),
                 getTiposServicio()
             ]);
-            setClientes(resClientes.data);
+            setClientes(resClientes.data.filter(c => c.estado === 'ACTIVO'));
             setEmpleados(resEmpleados.data);
             setTiposServicio(resTipos.data);
             
-            // Set defaults if available
             if (resClientes.data.length > 0) setSolicitud(s => ({ ...s, idCliente: resClientes.data[0].idCliente }));
             if (resEmpleados.data.length > 0) setSolicitud(s => ({ ...s, idEmpleado: resEmpleados.data[0].idEmpleado }));
             if (resTipos.data.length > 0) setSelectedTipo(resTipos.data[0].idTipoServicio);
@@ -97,6 +110,58 @@ const Servicios = () => {
     const iva = subtotal * 0.18;
     const total = subtotal + iva;
 
+    const handleNew = () => {
+        setSelectedOrden(null);
+        setEditingId(null);
+        setServicios([]);
+        setSolicitud({
+            idCliente: clientes.length > 0 ? clientes[0].idCliente : '',
+            fecha: new Date().toISOString().split('T')[0],
+            idEmpleado: empleados.length > 0 ? empleados[0].idEmpleado : '',
+            estado: 'PENDIENTE',
+            descripcion: ''
+        });
+        setView('form');
+    };
+
+    const handleEdit = (ord) => {
+        setSelectedOrden(ord);
+        setEditingId(ord.idOrdenServicio);
+        const sol = ord.solicitudServicio || {};
+        
+        // Populate services from order details
+        const mappedServicios = (ord.detalles || []).map(d => ({
+            idTipoServicio: d.tipoService?.idTipoServicio || d.tipoServicio?.idTipoServicio,
+            nombre: d.tipoService?.nombreServicio || d.tipoServicio?.nombreServicio || 'Servicio',
+            cantidad: d.cantidad,
+            precio: d.precioUnitario,
+            subtotal: d.subtotal
+        }));
+        setServicios(mappedServicios);
+
+        setSolicitud({
+            idCliente: sol.cliente ? sol.cliente.idCliente.toString() : '',
+            fecha: sol.fechaSolicitud ? sol.fechaSolicitud.split('T')[0] : new Date().toISOString().split('T')[0],
+            idEmpleado: sol.empleado ? sol.empleado.idEmpleado.toString() : '',
+            estado: ord.estadoOrden || 'PENDIENTE',
+            descripcion: sol.descripcionSol || ''
+        });
+        setView('form');
+    };
+
+    const handleDelete = async (id) => {
+        if (window.confirm("¿Está seguro de que desea eliminar esta orden y su solicitud asociada?")) {
+            try {
+                await deleteOrdenServicio(id);
+                alert("Orden eliminada exitosamente");
+                fetchOrdenes();
+            } catch (error) {
+                console.error("Error al eliminar orden", error);
+                alert("No se pudo eliminar el registro. Puede estar planificado.");
+            }
+        }
+    };
+
     const handleGenerarOrden = async () => {
         if (!solicitud.idCliente || !solicitud.idEmpleado || servicios.length === 0) {
             alert("Debe seleccionar un cliente, un empleado y agregar al menos un servicio.");
@@ -104,24 +169,20 @@ const Servicios = () => {
         }
 
         try {
-            // 1. Create Solicitud
-            const solPayload = {
-                fechaSolicitud: new Date(solicitud.fecha).toISOString(),
-                descripcionSol: solicitud.descripcion,
-                estadoSol: 'PENDIENTE',
-                cliente: { idCliente: solicitud.idCliente },
-                empleado: { idEmpleado: solicitud.idEmpleado }
-            };
-            
-            const solRes = await createSolicitud(solPayload);
-            const newSolicitudId = solRes.data.idSolicitudServicio;
-
-            // 2. Create Orden
-            const ordPayload = {
+            // 1. Payload
+            const payload = {
+                idOrdenServicio: editingId,
                 fechaOrden: new Date().toISOString(),
                 estadoOrden: solicitud.estado,
                 montoTotal: total,
-                solicitudServicio: { idSolicitudServicio: newSolicitudId },
+                solicitudServicio: {
+                    idSolicitudServicio: selectedOrden?.solicitudServicio?.idSolicitudServicio || null,
+                    fechaSolicitud: `${solicitud.fecha}T00:00:00`,
+                    descripcionSol: solicitud.descripcion,
+                    estadoSol: 'APROBADA',
+                    cliente: { idCliente: parseInt(solicitud.idCliente) },
+                    empleado: { idEmpleado: parseInt(solicitud.idEmpleado) }
+                },
                 detalles: servicios.map(s => ({
                     cantidad: s.cantidad,
                     precioUnitario: s.precio,
@@ -130,8 +191,13 @@ const Servicios = () => {
                 }))
             };
 
-            await createOrdenServicio(ordPayload);
-            alert("Orden generada exitosamente!");
+            if (editingId) {
+                await updateOrdenServicio(editingId, payload);
+                alert("Orden de servicio actualizada exitosamente!");
+            } else {
+                await createOrdenServicio(payload);
+                alert("Orden generada exitosamente!");
+            }
             
             // Reset and go back
             setServicios([]);
@@ -139,9 +205,14 @@ const Servicios = () => {
             setView('list');
             
         } catch (error) {
-            console.error("Error al generar la orden", error);
-            alert("Ocurrió un error al generar la orden de servicio.");
+            console.error("Error al guardar la orden", error);
+            alert("Ocurrió un error al guardar la orden de servicio.");
         }
+    };
+
+    const handleOpenDetails = (ord) => {
+        setSelectedOrden(ord);
+        setShowDetailsModal(true);
     };
 
     if (view === 'list') {
@@ -152,11 +223,11 @@ const Servicios = () => {
                 <div className="page-header">
                     <div>
                         <h1 className="page-title">Historial de Órdenes</h1>
-                        <p className="page-subtitle">Visualiza y administra las solicitudes y órdenes de servicio.</p>
+                        <p className="page-subtitle">Visualiza y administra las solicitudes y órdenes de servicio del sistema.</p>
                     </div>
                     <div className="header-actions">
-                        <button className="btn-nuevo" onClick={() => setView('form')}>
-                            <MdAdd size={18} /> Nueva Solicitud
+                        <button className="btn-nuevo" onClick={handleNew}>
+                            <MdAddIcon size={18} /> Nueva Solicitud
                         </button>
                     </div>
                 </div>
@@ -170,31 +241,99 @@ const Servicios = () => {
                                 <th>Cliente</th>
                                 <th>Monto Total</th>
                                 <th>Estado</th>
+                                <th>Acciones</th>
                             </tr>
                         </thead>
                         <tbody>
                             {loading ? (
-                                <tr><td colSpan="5" style={{ textAlign: 'center' }}>Cargando...</td></tr>
+                                <tr><td colSpan="6" style={{ textAlign: 'center' }}>Cargando...</td></tr>
                             ) : ordenes.length === 0 ? (
-                                <tr><td colSpan="5" style={{ textAlign: 'center' }}>No hay órdenes registradas.</td></tr>
+                                <tr><td colSpan="6" style={{ textAlign: 'center' }}>No hay órdenes registradas.</td></tr>
                             ) : (
-                                ordenes.map(ord => (
-                                    <tr key={ord.idOrdenServicio}>
-                                        <td># {ord.idOrdenServicio}</td>
-                                        <td>{new Date(ord.fechaOrden).toLocaleDateString()}</td>
-                                        <td>{ord.solicitudServicio?.cliente?.razonSocial || 'Desconocido'}</td>
-                                        <td>{formatCurrency(ord.montoTotal)}</td>
-                                        <td>
-                                            <span className={`status-badge status-${ord.estadoOrden?.toLowerCase()}`}>
-                                                {ord.estadoOrden?.replace('_', ' ')}
-                                            </span>
-                                        </td>
-                                    </tr>
-                                ))
+                                ordenes.map(ord => {
+                                    const canEditDelete = ord.estadoOrden === 'PENDIENTE' || ord.estadoOrden === 'EN_PROCESO';
+                                    return (
+                                        <tr key={ord.idOrdenServicio}>
+                                            <td style={{ fontWeight: 'bold' }}># {ord.idOrdenServicio}</td>
+                                            <td>{new Date(ord.fechaOrden).toLocaleDateString()}</td>
+                                            <td>{ord.solicitudServicio?.cliente?.razonSocial || 'Desconocido'}</td>
+                                            <td style={{ color: '#0b7a75', fontWeight: 'bold' }}>{formatCurrency(ord.montoTotal)}</td>
+                                            <td>
+                                                <span className={`status-badge status-${ord.estadoOrden?.toLowerCase()}`}>
+                                                    {ord.estadoOrden?.replace('_', ' ')}
+                                                </span>
+                                            </td>
+                                            <td>
+                                                <button className="btn-table-details" onClick={() => handleOpenDetails(ord)} title="Ver Detalles">
+                                                    <MdEyeIcon size={16} /> Detalles
+                                                </button>
+                                                {canEditDelete && (
+                                                    <>
+                                                        <button className="btn-table-edit" onClick={() => handleEdit(ord)}>Editar</button>
+                                                        <button className="btn-table-delete" onClick={() => handleDelete(ord.idOrdenServicio)}>Borrar</button>
+                                                    </>
+                                                )}
+                                            </td>
+                                        </tr>
+                                    );
+                                })
                             )}
                         </tbody>
                     </table>
                 </div>
+
+                {/* Details Modal */}
+                {showDetailsModal && selectedOrden && (
+                    <div className="modal-overlay">
+                        <div className="modal-content" style={{ width: '600px' }}>
+                            <div className="modal-header">
+                                <h2>Detalles de Orden de Servicio # {selectedOrden.idOrdenServicio}</h2>
+                                <button className="btn-close" onClick={() => setShowDetailsModal(false)}>
+                                    <MdClose size={20} />
+                                </button>
+                            </div>
+                            <div className="modal-body" style={{ fontSize: '14px', color: '#334155' }}>
+                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px', marginBottom: '20px' }}>
+                                    <div><strong>Cliente:</strong> {selectedOrden.solicitudServicio?.cliente?.razonSocial}</div>
+                                    <div><strong>RUC:</strong> {selectedOrden.solicitudServicio?.cliente?.ruc}</div>
+                                    <div><strong>Fecha Orden:</strong> {new Date(selectedOrden.fechaOrden).toLocaleString()}</div>
+                                    <div><strong>Estado:</strong> {selectedOrden.estadoOrden}</div>
+                                    <div><strong>Empleado Atiende:</strong> {selectedOrden.solicitudServicio?.empleado?.nombreEmp} {selectedOrden.solicitudServicio?.empleado?.apellidoEmp}</div>
+                                    <div><strong>Total a Pagar:</strong> {formatCurrency(selectedOrden.montoTotal)}</div>
+                                </div>
+                                <div style={{ marginBottom: '15px' }}>
+                                    <strong>Descripción de Solicitud:</strong>
+                                    <p style={{ background: '#f8fafc', padding: '10px', borderRadius: '4px', fontStyle: 'italic', marginTop: '6px' }}>
+                                        {selectedOrden.solicitudServicio?.descripcionSol || 'Sin descripción adicional.'}
+                                    </p>
+                                </div>
+                                <div>
+                                    <strong>Servicios Contratados:</strong>
+                                    <table className="servicios-table" style={{ marginTop: '10px', width: '100%' }}>
+                                        <thead>
+                                            <tr>
+                                                <th>Servicio</th>
+                                                <th>Cantidad</th>
+                                                <th>Precio</th>
+                                                <th>Subtotal</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {(selectedOrden.detalles || []).map((det, idx) => (
+                                                <tr key={idx}>
+                                                    <td>{det.tipoServicio?.nombreServicio || det.tipoService?.nombreServicio || 'Servicio'}</td>
+                                                    <td>{det.cantidad}</td>
+                                                    <td>{formatCurrency(det.precioUnitario)}</td>
+                                                    <td>{formatCurrency(det.subtotal)}</td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                )}
             </div>
         );
     }
@@ -202,20 +341,20 @@ const Servicios = () => {
     return (
         <div className="servicios-page">
             <div className="breadcrumb">
-                <span className="badge-dark">SOLICITUD_SERVICIO</span> / NUEVO_REGISTRO
+                <span className="badge-dark">SOLICITUD_SERVICIO</span> / {editingId ? `EDITAR_REGISTRO #${editingId}` : 'NUEVO_REGISTRO'}
             </div>
             
             <div className="page-header">
                 <div>
-                    <h1 className="page-title">Solicitud de Servicio</h1>
-                    <p className="page-subtitle">Cree una nueva solicitud y configure los detalles de la orden operativa.</p>
+                    <h1 className="page-title">{editingId ? 'Editar Solicitud' : 'Solicitud de Servicio'}</h1>
+                    <p className="page-subtitle">Configure los detalles específicos para la realización de los trabajos contratados.</p>
                 </div>
                 <div className="header-actions">
                     <button className="btn-cancelar" onClick={() => setView('list')}>
-                        <MdArrowBack size={16} /> Volver
+                        <MdBackIcon size={16} /> Volver
                     </button>
                     <button className="btn-generar" onClick={handleGenerarOrden}>
-                        <MdAssignment size={16} /> Generar orden de servicio
+                        <MdSaveIcon size={16} /> {editingId ? 'Guardar Cambios' : 'Generar orden de servicio'}
                     </button>
                 </div>
             </div>
@@ -224,7 +363,7 @@ const Servicios = () => {
                 <div className="main-column">
                     <div className="form-card">
                         <div className="card-header">
-                            <MdAssignment size={22} className="card-icon" />
+                            <MdOrderIcon size={22} className="card-icon" />
                             <h2>Información de la Solicitud</h2>
                         </div>
                         
@@ -255,19 +394,31 @@ const Servicios = () => {
                         </div>
 
                         <div className="form-group mb-20">
-                            <label>Estado de solicitud</label>
-                            <div className="estado-input">
-                                <span className="status-dot"></span> EN PROCESO
-                            </div>
+                            <label>Estado de la Orden</label>
+                            <select value={solicitud.estado} onChange={(e) => setSolicitud({...solicitud, estado: e.target.value})}>
+                                <option value="PENDIENTE">PENDIENTE</option>
+                                <option value="EN_PROCESO">EN PROCESO</option>
+                                <option value="COMPLETADO">COMPLETADO</option>
+                            </select>
                         </div>
 
                         <div className="form-group">
                             <label>Descripción del servicio solicitado</label>
                             <textarea 
-                                placeholder="Detalle los requerimientos especificos del cliente..." 
+                                placeholder="Detalle los requerimientos específicos del cliente..." 
                                 rows="3"
                                 value={solicitud.descripcion}
                                 onChange={(e) => setSolicitud({...solicitud, descripcion: e.target.value})}
+                                style={{
+                                    width: '100%',
+                                    padding: '10px 12px',
+                                    border: '1px solid #cbd5e1',
+                                    borderRadius: '4px',
+                                    fontFamily: 'inherit',
+                                    fontSize: '14px',
+                                    outline: 'none',
+                                    resize: 'vertical'
+                                }}
                             ></textarea>
                         </div>
                     </div>
@@ -291,8 +442,8 @@ const Servicios = () => {
                                     <label>Cantidad</label>
                                     <input type="number" min="1" value={cantidadSelected} onChange={(e) => setCantidadSelected(parseInt(e.target.value) || 1)} />
                                 </div>
-                                <button className="btn-generar" onClick={handleAddServicio} style={{height: '42px', marginTop: 'auto'}}>
-                                    <FaPlus size={12} /> Agregar
+                                <button className="btn-generar" onClick={handleAddServicio} style={{height: '42px', marginTop: 'auto', display: 'flex', alignItems: 'center', justifyContent: 'center'}}>
+                                    Agregar
                                 </button>
                             </div>
                         </div>
@@ -318,7 +469,7 @@ const Servicios = () => {
                                         <td>{formatCurrency(srv.precio)}</td>
                                         <td className="subtotal-cell">{formatCurrency(srv.subtotal)}</td>
                                         <td className="action-cell">
-                                            <MdDeleteOutline size={22} className="delete-icon" onClick={() => handleRemoveServicio(idx)} />
+                                            <MdDeleteIcon size={22} className="delete-icon" onClick={() => handleRemoveServicio(idx)} style={{ cursor: 'pointer', color: '#ef4444' }} />
                                         </td>
                                     </tr>
                                 ))}
@@ -337,7 +488,7 @@ const Servicios = () => {
                 <div className="side-column">
                     <div className="totals-card">
                         <div className="totals-header">
-                            <MdAssignment size={20} /> Resumen de Totales
+                            Resumen de Totales
                         </div>
                         <div className="divider"></div>
                         <div className="totals-row">
@@ -381,15 +532,8 @@ const Servicios = () => {
                             "Cliente requiere acceso por zona de carga posterior después de las 18:00."
                         </div>
                     </div>
-
-                    <div className="print-card">
-                        <MdPrint size={40} className="print-icon" />
-                        <p>La vista previa de la orden estará disponible al guardar los cambios.</p>
-                    </div>
                 </div>
             </div>
-
-
         </div>
     );
 };

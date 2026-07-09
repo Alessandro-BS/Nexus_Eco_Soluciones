@@ -1,0 +1,386 @@
+import React, { useState, useEffect } from 'react';
+import { MdPerson, MdStars, MdSave, MdAdd, MdEdit, MdDelete, MdClose } from 'react-icons/md';
+import { getTecnicos, createTecnico, updateTecnico, deleteTecnico, getEspecialidades, createEspecialidad, updateEspecialidad, deleteEspecialidad } from '../api/api';
+import './Tecnicos.css';
+
+const Tecnicos = () => {
+    const [activeTab, setActiveTab] = useState('tecnicos'); // 'tecnicos' or 'especialidades'
+    const [tecnicos, setTecnicos] = useState([]);
+    const [especialidades, setEspecialidades] = useState([]);
+    const [loading, setLoading] = useState(false);
+
+    // Modal state for Tecnicos
+    const [showTecnicoModal, setShowTecnicoModal] = useState(false);
+    const [editingTecnicoId, setEditingTecnicoId] = useState(null);
+    const [tecnicoForm, setTecnicoForm] = useState({
+        nombreTec: '',
+        apellidoTec: '',
+        estadoTec: 'ACTIVO',
+        idEspecialidad: ''
+    });
+
+    // Modal state for Especialidades
+    const [showEspecialidadModal, setShowEspecialidadModal] = useState(false);
+    const [editingEspecialidadId, setEditingEspecialidadId] = useState(null);
+    const [especialidadForm, setEspecialidadForm] = useState({
+        nombreEspec: '',
+        descripcion: ''
+    });
+
+    useEffect(() => {
+        fetchData();
+    }, []);
+
+    const fetchData = async () => {
+        setLoading(true);
+        try {
+            const [resTecnicos, resEspecialidades] = await Promise.all([
+                getTecnicos(),
+                getEspecialidades()
+            ]);
+            setTecnicos(resTecnicos.data);
+            setEspecialidades(resEspecialidades.data);
+        } catch (error) {
+            console.error("Error al obtener datos", error);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    // --- TECNICOS CRUD ---
+    const handleTecnicoChange = (e) => {
+        setTecnicoForm({ ...tecnicoForm, [e.target.name]: e.target.value });
+    };
+
+    const handleOpenCreateTecnico = () => {
+        setEditingTecnicoId(null);
+        setTecnicoForm({
+            nombreTec: '',
+            apellidoTec: '',
+            estadoTec: 'ACTIVO',
+            idEspecialidad: especialidades.length > 0 ? especialidades[0].idEspecialidad.toString() : ''
+        });
+        setShowTecnicoModal(true);
+    };
+
+    const handleOpenEditTecnico = (tec) => {
+        setEditingTecnicoId(tec.idTecnico);
+        setTecnicoForm({
+            nombreTec: tec.nombreTec || '',
+            apellidoTec: tec.apellidoTec || '',
+            estadoTec: tec.estadoTec || 'ACTIVO',
+            idEspecialidad: tec.especialidad ? tec.especialidad.idEspecialidad.toString() : ''
+        });
+        setShowTecnicoModal(true);
+    };
+
+    const handleDeleteTecnico = async (id) => {
+        if (window.confirm("¿Está seguro de que desea eliminar este técnico?")) {
+            try {
+                await deleteTecnico(id);
+                alert("Técnico eliminado exitosamente");
+                fetchData();
+            } catch (error) {
+                console.error("Error al eliminar técnico", error);
+                alert("No se pudo eliminar el técnico. Verifique que no esté asignado a planificaciones.");
+            }
+        }
+    };
+
+    const handleSaveTecnico = async (e) => {
+        e.preventDefault();
+        if (!tecnicoForm.nombreTec || !tecnicoForm.apellidoTec) {
+            alert("Nombre y Apellido son requeridos.");
+            return;
+        }
+
+        const payload = {
+            idTecnico: editingTecnicoId,
+            nombreTec: tecnicoForm.nombreTec,
+            apellidoTec: tecnicoForm.apellidoTec,
+            estadoTec: tecnicoForm.estadoTec,
+            especialidad: tecnicoForm.idEspecialidad ? {
+                idEspecialidad: parseInt(tecnicoForm.idEspecialidad)
+            } : null
+        };
+
+        try {
+            if (editingTecnicoId) {
+                await updateTecnico(editingTecnicoId, payload);
+                alert("Técnico actualizado exitosamente");
+            } else {
+                await createTecnico(payload);
+                alert("Técnico guardado exitosamente");
+            }
+            setShowTecnicoModal(false);
+            fetchData();
+        } catch (error) {
+            console.error("Error al guardar técnico", error);
+            alert("Ocurrió un error al guardar el técnico.");
+        }
+    };
+
+    // --- ESPECIALIDADES CRUD ---
+    const handleEspecialidadChange = (e) => {
+        setEspecialidadForm({ ...especialidadForm, [e.target.name]: e.target.value });
+    };
+
+    const handleOpenCreateEspecialidad = () => {
+        setEditingEspecialidadId(null);
+        setEspecialidadForm({ nombreEspec: '', descripcion: '' });
+        setShowEspecialidadModal(true);
+    };
+
+    const handleOpenEditEspecialidad = (esp) => {
+        setEditingEspecialidadId(esp.idEspecialidad);
+        setFormEspecialidad({
+            nombreEspec: esp.nombreEspec || '',
+            descripcion: esp.descripcion || ''
+        });
+        setShowEspecialidadModal(true);
+    };
+
+    const setFormEspecialidad = (data) => {
+        setEspecialidadForm(data);
+    };
+
+    const handleDeleteEspecialidad = async (id) => {
+        if (window.confirm("¿Está seguro de que desea eliminar esta especialidad?")) {
+            try {
+                await deleteEspecialidad(id);
+                alert("Especialidad eliminada exitosamente");
+                fetchData();
+            } catch (error) {
+                console.error("Error al eliminar especialidad", error);
+                alert("No se pudo eliminar la especialidad. Verifique que no esté asignada a técnicos.");
+            }
+        }
+    };
+
+    const handleSaveEspecialidad = async (e) => {
+        e.preventDefault();
+        if (!especialidadForm.nombreEspec) {
+            alert("Nombre de especialidad es requerido.");
+            return;
+        }
+
+        const payload = {
+            idEspecialidad: editingEspecialidadId,
+            nombreEspec: especialidadForm.nombreEspec,
+            descripcion: especialidadForm.descripcion
+        };
+
+        try {
+            if (editingEspecialidadId) {
+                await updateEspecialidad(editingEspecialidadId, payload);
+                alert("Especialidad actualizada exitosamente");
+            } else {
+                await createEspecialidad(payload);
+                alert("Especialidad guardada exitosamente");
+            }
+            setShowEspecialidadModal(false);
+            fetchData();
+        } catch (error) {
+            console.error("Error al guardar especialidad", error);
+            alert("Ocurrió un error al guardar la especialidad.");
+        }
+    };
+
+    return (
+        <div className="tecnicos-page">
+            <div className="breadcrumb">ADMINISTRACIÓN / TÉCNICOS Y ESPECIALIDADES</div>
+
+            <div className="page-header">
+                <div>
+                    <h1 className="page-title">Personal Técnico</h1>
+                    <p className="page-subtitle">Gestiona el equipo de técnicos de campo y sus respectivas especialidades operativas.</p>
+                </div>
+                <div className="header-actions">
+                    {activeTab === 'tecnicos' ? (
+                        <button className="btn-nuevo" onClick={handleOpenCreateTecnico}>
+                            <MdAdd size={18} style={{ verticalAlign: 'middle', marginRight: '5px' }}/> Nuevo Técnico
+                        </button>
+                    ) : (
+                        <button className="btn-nuevo" onClick={handleOpenCreateEspecialidad}>
+                            <MdAdd size={18} style={{ verticalAlign: 'middle', marginRight: '5px' }}/> Nueva Especialidad
+                        </button>
+                    )}
+                </div>
+            </div>
+
+            <div className="tabs-container">
+                <button 
+                    className={`tab-btn ${activeTab === 'tecnicos' ? 'active' : ''}`}
+                    onClick={() => setActiveTab('tecnicos')}
+                >
+                    <MdPerson size={18} style={{ marginRight: '6px' }} /> Técnicos
+                </button>
+                <button 
+                    className={`tab-btn ${activeTab === 'especialidades' ? 'active' : ''}`}
+                    onClick={() => setActiveTab('especialidades')}
+                >
+                    <MdStars size={18} style={{ marginRight: '6px' }} /> Especialidades
+                </button>
+            </div>
+
+            {activeTab === 'tecnicos' ? (
+                <div className="table-container">
+                    <table className="tecnicos-table">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Nombres</th>
+                                <th>Apellidos</th>
+                                <th>Especialidad</th>
+                                <th>Estado</th>
+                                <th>Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {loading ? (
+                                <tr><td colSpan="6" style={{ textAlign: 'center' }}>Cargando...</td></tr>
+                            ) : tecnicos.length === 0 ? (
+                                <tr><td colSpan="6" style={{ textAlign: 'center' }}>No hay técnicos registrados.</td></tr>
+                            ) : (
+                                tecnicos.map(tec => (
+                                    <tr key={tec.idTecnico}>
+                                        <td>{tec.idTecnico}</td>
+                                        <td>{tec.nombreTec}</td>
+                                        <td>{tec.apellidoTec}</td>
+                                        <td>{tec.especialidad ? tec.especialidad.nombreEspec : 'Sin especialidad'}</td>
+                                        <td>
+                                            <span className={`status-badge status-${tec.estadoTec?.toLowerCase()}`}>
+                                                {tec.estadoTec}
+                                            </span>
+                                        </td>
+                                        <td>
+                                            <button className="btn-table-edit" onClick={() => handleOpenEditTecnico(tec)}>Editar</button>
+                                            <button className="btn-table-delete" onClick={() => handleDeleteTecnico(tec.idTecnico)}>Eliminar</button>
+                                        </td>
+                                    </tr>
+                                ))
+                            )}
+                        </tbody>
+                    </table>
+                </div>
+            ) : (
+                <div className="table-container">
+                    <table className="especialidades-table">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Especialidad</th>
+                                <th>Descripción</th>
+                                <th>Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {loading ? (
+                                <tr><td colSpan="4" style={{ textAlign: 'center' }}>Cargando...</td></tr>
+                            ) : especialidades.length === 0 ? (
+                                <tr><td colSpan="4" style={{ textAlign: 'center' }}>No hay especialidades registradas.</td></tr>
+                            ) : (
+                                especialidades.map(esp => (
+                                    <tr key={esp.idEspecialidad}>
+                                        <td>{esp.idEspecialidad}</td>
+                                        <td style={{ fontWeight: '600' }}>{esp.nombreEspec}</td>
+                                        <td>{esp.descripcion || '-'}</td>
+                                        <td>
+                                            <button className="btn-table-edit" onClick={() => handleOpenEditEspecialidad(esp)}>Editar</button>
+                                            <button className="btn-table-delete" onClick={() => handleDeleteEspecialidad(esp.idEspecialidad)}>Eliminar</button>
+                                        </td>
+                                    </tr>
+                                ))
+                            )}
+                        </tbody>
+                    </table>
+                </div>
+            )}
+
+            {/* Técnico Modal */}
+            {showTecnicoModal && (
+                <div className="modal-overlay">
+                    <div className="modal-content">
+                        <div className="modal-header">
+                            <h2>{editingTecnicoId ? 'Editar Técnico' : 'Nuevo Técnico'}</h2>
+                            <button className="btn-close" onClick={() => setShowTecnicoModal(false)}>
+                                <MdClose size={20} />
+                            </button>
+                        </div>
+                        <form onSubmit={handleSaveTecnico}>
+                            <div className="form-group">
+                                <label>Nombre</label>
+                                <input type="text" name="nombreTec" value={tecnicoForm.nombreTec} onChange={handleTecnicoChange} required />
+                            </div>
+                            <div className="form-group">
+                                <label>Apellido</label>
+                                <input type="text" name="apellidoTec" value={tecnicoForm.apellidoTec} onChange={handleTecnicoChange} required />
+                            </div>
+                            <div className="form-group">
+                                <label>Especialidad</label>
+                                <select name="idEspecialidad" value={tecnicoForm.idEspecialidad} onChange={handleTecnicoChange} required>
+                                    <option value="">-- Seleccionar Especialidad --</option>
+                                    {especialidades.map(esp => (
+                                        <option key={esp.idEspecialidad} value={esp.idEspecialidad}>
+                                            {esp.nombreEspec}
+                                        </option>
+                                    ))}
+                                </select>
+                            </div>
+                            <div className="form-group">
+                                <label>Estado</label>
+                                <select name="estadoTec" value={tecnicoForm.estadoTec} onChange={handleTecnicoChange}>
+                                    <option value="ACTIVO">Activo</option>
+                                    <option value="INACTIVO">Inactivo</option>
+                                </select>
+                            </div>
+                            <div className="modal-actions">
+                                <button type="button" className="btn-cancelar" onClick={() => setShowTecnicoModal(false)}>Cancelar</button>
+                                <button type="submit" className="btn-guardar"><MdSave size={16} /> Guardar</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
+
+            {/* Especialidad Modal */}
+            {showEspecialidadModal && (
+                <div className="modal-overlay">
+                    <div className="modal-content">
+                        <div className="modal-header">
+                            <h2>{editingEspecialidadId ? 'Editar Especialidad' : 'Nueva Especialidad'}</h2>
+                            <button className="btn-close" onClick={() => setShowEspecialidadModal(false)}>
+                                <MdClose size={20} />
+                            </button>
+                        </div>
+                        <form onSubmit={handleSaveEspecialidad}>
+                            <div className="form-group">
+                                <label>Nombre de Especialidad</label>
+                                <input type="text" name="nombreEspec" value={especialidadForm.nombreEspec} onChange={handleEspecialidadChange} required />
+                            </div>
+                            <div className="form-group">
+                                <label>Descripción</label>
+                                <textarea name="descripcion" value={especialidadForm.descripcion} onChange={handleEspecialidadChange} rows="3" style={{
+                                    width: '100%',
+                                    padding: '10px 12px',
+                                    border: '1px solid #cbd5e1',
+                                    borderRadius: '4px',
+                                    fontFamily: 'inherit',
+                                    fontSize: '14px',
+                                    outline: 'none',
+                                    resize: 'vertical'
+                                }} />
+                            </div>
+                            <div className="modal-actions">
+                                <button type="button" className="btn-cancelar" onClick={() => setShowEspecialidadModal(false)}>Cancelar</button>
+                                <button type="submit" className="btn-guardar"><MdSave size={16} /> Guardar</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+};
+
+export default Tecnicos;

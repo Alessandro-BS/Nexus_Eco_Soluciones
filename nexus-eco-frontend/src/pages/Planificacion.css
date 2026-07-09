@@ -1,0 +1,86 @@
+.planificacion-page {
+    max-width: 1000px;
+    margin: 0 auto;
+    padding-bottom: 40px;
+}
+
+.planificaciones-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 14px;
+}
+
+.planificaciones-table th, .planificaciones-table td {
+    padding: 12px 16px;
+    text-align: left;
+    border-bottom: 1px solid #f1f5f9;
+}
+
+.planificaciones-table th {
+    background: #f8fafc;
+    font-weight: 600;
+    color: #475569;
+}
+
+.planificaciones-table tr:hover {
+    background: #f8fafc;
+}
+
+/* Technicians grid checkboxes */
+.technicians-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin-top: 10px;
+}
+
+.tech-checkbox-label {
+    display: flex;
+    align-items: center;
+    padding: 12px 16px;
+    border: 1px solid #e2e8f0;
+    border-radius: 6px;
+    cursor: pointer;
+    background: #f8fafc;
+    transition: all 0.2s;
+}
+
+.tech-checkbox-label:hover {
+    background: #f1f5f9;
+    border-color: #cbd5e1;
+}
+
+.tech-checkbox-label input {
+    margin-right: 12px;
+    width: 18px;
+    height: 18px;
+    accent-color: #0b7a75;
+    cursor: pointer;
+}
+
+.tech-name {
+    font-weight: 600;
+    font-size: 14px;
+    color: #1e293b;
+    margin-right: 8px;
+}
+
+.tech-speciality {
+    font-size: 12px;
+    color: #64748b;
+}
+
+.status-badge.status-programado {
+    background: #e0f2fe;
+    color: #075985;
+}
+
+.status-badge.status-ejecutado {
+    background: #dcfce7;
+    color: #166534;
+}
+
+.status-badge.status-cancelado {
+    background: #fee2e2;
+    color: #991b1b;
+}

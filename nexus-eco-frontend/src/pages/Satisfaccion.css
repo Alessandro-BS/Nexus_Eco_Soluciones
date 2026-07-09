@@ -1,0 +1,119 @@
+.satisfaccion-page {
+    max-width: 1000px;
+    margin: 0 auto;
+    padding-bottom: 40px;
+}
+
+.google-forms-info-card {
+    display: flex;
+    gap: 20px;
+    background: #f8fafc;
+    border-left: 4px solid #5746e3;
+    padding: 20px;
+    border-radius: 0 8px 8px 0;
+    margin-bottom: 30px;
+}
+
+.info-icon-wrapper {
+    color: #5746e3;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.info-text h3 {
+    margin: 0 0 6px 0;
+    font-size: 16px;
+    font-weight: 700;
+    color: #0f172a;
+}
+
+.info-text p {
+    margin: 0;
+    font-size: 13.5px;
+    color: #475569;
+    line-height: 1.5;
+}
+
+.btn-form-link {
+    display: inline-flex;
+    align-items: center;
+    padding: 10px 20px;
+    background: #5746e3;
+    color: white;
+    font-weight: 600;
+    font-size: 14px;
+    text-decoration: none;
+    border-radius: 4px;
+    transition: all 0.2s;
+}
+
+.btn-form-link:hover {
+    background: #4333cb;
+}
+
+.btn-refresh {
+    background: white;
+    border: 1px solid #cbd5e1;
+    color: #64748b;
+    border-radius: 4px;
+    padding: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.btn-refresh:hover {
+    background: #f1f5f9;
+    color: #0f172a;
+}
+
+.satisfaccion-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 14px;
+}
+
+.satisfaccion-table th, .satisfaccion-table td {
+    padding: 12px 16px;
+    text-align: left;
+    border-bottom: 1px solid #f1f5f9;
+}
+
+.satisfaccion-table th {
+    background: #f8fafc;
+    font-weight: 600;
+    color: #475569;
+}
+
+.satisfaccion-table tr:hover {
+    background: #f8fafc;
+}
+
+.btn-delete-survey {
+    background: none;
+    border: none;
+    color: #94a3b8;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 4px;
+    border-radius: 4px;
+    transition: all 0.2s;
+}
+
+.btn-delete-survey:hover {
+    color: #ef4444;
+    background: #fee2e2;
+}
+
+.star-filled {
+    margin-right: 2px;
+}
+
+.star-empty {
+    margin-right: 2px;
+}
