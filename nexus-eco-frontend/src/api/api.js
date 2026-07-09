@@ -32,4 +32,32 @@ export const uploadEvidencia = (file) => {
     });
 };
 
+// Empleados API
+export const getEmpleados = () => api.get('/empleados');
+
+// Tipos Servicio API
+export const getTiposServicio = () => api.get('/tipo-servicios');
+
+// Ordenes API
+export const getOrdenes = () => api.get('/orden-servicios');
+export const createOrdenServicio = (data) => api.post('/orden-servicios', data);
+
+// Auditorias API
+export const getAuditorias = () => api.get('/auditorias');
+export const getAuditoriasByEjecucion = (idEjecucion) => api.get(`/auditorias?ejecucionId=${idEjecucion}`);
+export const createAuditoria = (data) => api.post('/auditorias', data);
+
+// Incidentes API
+export const getIncidentes = () => api.get('/incidentes');
+export const getIncidentesByEjecucion = (idEjecucion) => api.get(`/incidentes?ejecucionId=${idEjecucion}`);
+export const createIncidente = (data) => api.post('/incidentes', data);
+
+// Informes API
+export const getInformes = () => api.get('/informeservicios');
+export const createInforme = (data) => api.post('/informeservicios', data);
+
+// Planificacion API
+export const getPlanificaciones = () => api.get('/planificacionservicios');
+export const createPlanificacion = (data) => api.post('/planificacionservicios', data);
+
 export default api;

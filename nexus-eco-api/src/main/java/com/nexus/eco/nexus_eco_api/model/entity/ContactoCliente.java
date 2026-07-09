@@ -1,6 +1,7 @@
 package com.nexus.eco.nexus_eco_api.model.entity;
 import jakarta.persistence.*;
 import lombok.Data;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 
 @Data
 @Entity
@@ -18,5 +19,6 @@ public class ContactoCliente {
     private String emailContacto;
     @ManyToOne
     @JoinColumn(name = "id_cliente")
+    @JsonIgnore
     private Cliente cliente;
 }

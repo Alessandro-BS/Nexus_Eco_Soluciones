@@ -20,4 +20,8 @@ public class PlanificacionServicio {
     @ManyToOne
     @JoinColumn(name = "id_ubicacion")
     private Ubicacion ubicacion;
+    
+    @ManyToOne
+    @JoinColumn(name = "id_orden_servicio")
+    private OrdenServicio ordenServicio;
 }

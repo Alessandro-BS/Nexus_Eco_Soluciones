@@ -2,6 +2,7 @@ package com.nexus.eco.nexus_eco_api.model.entity;
 import jakarta.persistence.*;
 import lombok.Data;
 import java.math.BigDecimal;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 
 @Data
 @Entity
@@ -18,6 +19,7 @@ public class DetalleOrden {
     private BigDecimal subtotal;
     @ManyToOne
     @JoinColumn(name = "id_orden_servicio")
+    @JsonIgnore
     private OrdenServicio ordenServicio;
     @ManyToOne
     @JoinColumn(name = "id_tipo_servicio")

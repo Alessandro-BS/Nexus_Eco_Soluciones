@@ -1,29 +1,203 @@
-import React, { useState } from 'react';
-import { MdClose, MdAssignment, MdSearch, MdEvent, MdDeleteOutline, MdHistory, MdLocalOffer, MdPrint } from 'react-icons/md';
+import React, { useState, useEffect } from 'react';
+import { MdClose, MdAssignment, MdSearch, MdEvent, MdDeleteOutline, MdHistory, MdLocalOffer, MdPrint, MdAdd, MdArrowBack } from 'react-icons/md';
 import { FaPlus } from 'react-icons/fa';
+import { getClientes, getEmpleados, getTiposServicio, getOrdenes, createSolicitud, createOrdenServicio } from '../api/api';
 import './Servicios.css';
 
 const Servicios = () => {
+    const [view, setView] = useState('list'); // 'list' or 'form'
+    const [ordenes, setOrdenes] = useState([]);
+    
+    // Dropdown Data
+    const [clientes, setClientes] = useState([]);
+    const [empleados, setEmpleados] = useState([]);
+    const [tiposServicio, setTiposServicio] = useState([]);
+    
+    const [loading, setLoading] = useState(false);
+
+    // Form State
     const [solicitud, setSolicitud] = useState({
-        cliente: '',
-        fecha: '2023-10-27',
-        empleado: 'Carlos Alberto Gómez',
+        idCliente: '',
+        fecha: new Date().toISOString().split('T')[0],
+        idEmpleado: '',
         estado: 'EN_PROCESO',
         descripcion: ''
     });
 
-    const [servicios, setServicios] = useState([
-        { id: 1, nombre: 'Control de Plagas', tipo: 'TIPO_SERVICIO_P04', cantidad: 1, precio: 125000 },
-        { id: 2, nombre: 'Limpieza de Tanques', tipo: 'TIPO_SERVICIO_L01', cantidad: 2, precio: 45000 }
-    ]);
+    const [servicios, setServicios] = useState([]); // Selected services
+    const [selectedTipo, setSelectedTipo] = useState('');
+    const [cantidadSelected, setCantidadSelected] = useState(1);
+
+    useEffect(() => {
+        if (view === 'list') {
+            fetchOrdenes();
+        } else {
+            fetchFormData();
+        }
+    }, [view]);
+
+    const fetchOrdenes = async () => {
+        try {
+            setLoading(true);
+            const res = await getOrdenes();
+            setOrdenes(res.data);
+        } catch (error) {
+            console.error("Error fetching ordenes", error);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const fetchFormData = async () => {
+        try {
+            const [resClientes, resEmpleados, resTipos] = await Promise.all([
+                getClientes(),
+                getEmpleados(),
+                getTiposServicio()
+            ]);
+            setClientes(resClientes.data);
+            setEmpleados(resEmpleados.data);
+            setTiposServicio(resTipos.data);
+            
+            // Set defaults if available
+            if (resClientes.data.length > 0) setSolicitud(s => ({ ...s, idCliente: resClientes.data[0].idCliente }));
+            if (resEmpleados.data.length > 0) setSolicitud(s => ({ ...s, idEmpleado: resEmpleados.data[0].idEmpleado }));
+            if (resTipos.data.length > 0) setSelectedTipo(resTipos.data[0].idTipoServicio);
+            
+        } catch (error) {
+            console.error("Error fetching form data", error);
+        }
+    };
 
     const formatCurrency = (amount) => {
         return new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP' }).format(amount);
     };
 
-    const subtotal = servicios.reduce((acc, curr) => acc + (curr.cantidad * curr.precio), 0);
+    const handleAddServicio = () => {
+        const tipo = tiposServicio.find(t => t.idTipoServicio.toString() === selectedTipo.toString());
+        if (tipo && cantidadSelected > 0) {
+            setServicios([...servicios, {
+                idTipoServicio: tipo.idTipoServicio,
+                nombre: tipo.nombreServicio,
+                cantidad: cantidadSelected,
+                precio: tipo.precioBase,
+                subtotal: cantidadSelected * tipo.precioBase
+            }]);
+            setCantidadSelected(1);
+        }
+    };
+
+    const handleRemoveServicio = (index) => {
+        const newSrv = [...servicios];
+        newSrv.splice(index, 1);
+        setServicios(newSrv);
+    };
+
+    const subtotal = servicios.reduce((acc, curr) => acc + curr.subtotal, 0);
     const iva = subtotal * 0.19;
     const total = subtotal + iva;
+
+    const handleGenerarOrden = async () => {
+        if (!solicitud.idCliente || !solicitud.idEmpleado || servicios.length === 0) {
+            alert("Debe seleccionar un cliente, un empleado y agregar al menos un servicio.");
+            return;
+        }
+
+        try {
+            // 1. Create Solicitud
+            const solPayload = {
+                fechaSolicitud: new Date(solicitud.fecha).toISOString(),
+                descripcionSol: solicitud.descripcion,
+                estadoSol: 'PENDIENTE',
+                cliente: { idCliente: solicitud.idCliente },
+                empleado: { idEmpleado: solicitud.idEmpleado }
+            };
+            
+            const solRes = await createSolicitud(solPayload);
+            const newSolicitudId = solRes.data.idSolicitudServicio;
+
+            // 2. Create Orden
+            const ordPayload = {
+                fechaOrden: new Date().toISOString(),
+                estadoOrden: solicitud.estado,
+                montoTotal: total,
+                solicitudServicio: { idSolicitudServicio: newSolicitudId },
+                detalles: servicios.map(s => ({
+                    cantidad: s.cantidad,
+                    precioUnitario: s.precio,
+                    subtotal: s.subtotal,
+                    tipoServicio: { idTipoServicio: s.idTipoServicio }
+                }))
+            };
+
+            await createOrdenServicio(ordPayload);
+            alert("Orden generada exitosamente!");
+            
+            // Reset and go back
+            setServicios([]);
+            setSolicitud({ ...solicitud, descripcion: '' });
+            setView('list');
+            
+        } catch (error) {
+            console.error("Error al generar la orden", error);
+            alert("Ocurrió un error al generar la orden de servicio.");
+        }
+    };
+
+    if (view === 'list') {
+        return (
+            <div className="servicios-page">
+                <div className="breadcrumb">GESTIÓN / SERVICIOS</div>
+                
+                <div className="page-header">
+                    <div>
+                        <h1 className="page-title">Historial de Órdenes</h1>
+                        <p className="page-subtitle">Visualiza y administra las solicitudes y órdenes de servicio.</p>
+                    </div>
+                    <div className="header-actions">
+                        <button className="btn-nuevo" onClick={() => setView('form')}>
+                            <MdAdd size={18} /> Nueva Solicitud
+                        </button>
+                    </div>
+                </div>
+
+                <div className="table-container">
+                    <table className="main-table">
+                        <thead>
+                            <tr>
+                                <th>ID Orden</th>
+                                <th>Fecha</th>
+                                <th>Cliente</th>
+                                <th>Monto Total</th>
+                                <th>Estado</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {loading ? (
+                                <tr><td colSpan="5" style={{ textAlign: 'center' }}>Cargando...</td></tr>
+                            ) : ordenes.length === 0 ? (
+                                <tr><td colSpan="5" style={{ textAlign: 'center' }}>No hay órdenes registradas.</td></tr>
+                            ) : (
+                                ordenes.map(ord => (
+                                    <tr key={ord.idOrdenServicio}>
+                                        <td># {ord.idOrdenServicio}</td>
+                                        <td>{new Date(ord.fechaOrden).toLocaleDateString()}</td>
+                                        <td>{ord.solicitudServicio?.cliente?.razonSocial || 'Desconocido'}</td>
+                                        <td>{formatCurrency(ord.montoTotal)}</td>
+                                        <td>
+                                            <span className={`status-badge status-${ord.estadoOrden?.toLowerCase()}`}>
+                                                {ord.estadoOrden}
+                                            </span>
+                                        </td>
+                                    </tr>
+                                ))
+                            )}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        );
+    }
 
     return (
         <div className="servicios-page">
@@ -37,10 +211,10 @@ const Servicios = () => {
                     <p className="page-subtitle">Cree una nueva solicitud y configure los detalles de la orden operativa.</p>
                 </div>
                 <div className="header-actions">
-                    <button className="btn-cancelar">
-                        <MdClose size={16} /> Cancelar
+                    <button className="btn-cancelar" onClick={() => setView('list')}>
+                        <MdArrowBack size={16} /> Volver
                     </button>
-                    <button className="btn-generar">
+                    <button className="btn-generar" onClick={handleGenerarOrden}>
                         <MdAssignment size={16} /> Generar orden de servicio
                     </button>
                 </div>
@@ -56,11 +230,11 @@ const Servicios = () => {
                         
                         <div className="form-group mb-20">
                             <label>Cliente (SOLICITUD_SERVICIO.cliente_id)</label>
-                            <div className="search-input-wrapper">
-                                <MdSearch size={20} className="search-icon" />
-                                <input type="text" placeholder="Buscar por nombre, NIT o razón social..." />
-                                <span className="input-badge">CLIENTE</span>
-                            </div>
+                            <select value={solicitud.idCliente} onChange={(e) => setSolicitud({...solicitud, idCliente: e.target.value})}>
+                                {clientes.map(c => (
+                                    <option key={c.idCliente} value={c.idCliente}>{c.razonSocial} - {c.ruc}</option>
+                                ))}
+                            </select>
                         </div>
 
                         <div className="form-grid">
@@ -72,9 +246,10 @@ const Servicios = () => {
                             </div>
                             <div className="form-group">
                                 <label>Empleado que atiende</label>
-                                <select value={solicitud.empleado} onChange={(e) => setSolicitud({...solicitud, empleado: e.target.value})}>
-                                    <option value="Carlos Alberto Gómez">Carlos Alberto Gómez</option>
-                                    <option value="Ana María López">Ana María López</option>
+                                <select value={solicitud.idEmpleado} onChange={(e) => setSolicitud({...solicitud, idEmpleado: e.target.value})}>
+                                    {empleados.map(emp => (
+                                        <option key={emp.idEmpleado} value={emp.idEmpleado}>{emp.nombreEmp} {emp.apellidoEmp}</option>
+                                    ))}
                                 </select>
                             </div>
                         </div>
@@ -97,6 +272,32 @@ const Servicios = () => {
                         </div>
                     </div>
 
+                    <div className="form-card">
+                        <div className="card-header">
+                            <MdLocalOffer size={22} className="card-icon" />
+                            <h2>Agregar Servicios</h2>
+                        </div>
+                        <div className="form-grid" style={{alignItems: 'end'}}>
+                            <div className="form-group">
+                                <label>Tipo de Servicio</label>
+                                <select value={selectedTipo} onChange={(e) => setSelectedTipo(e.target.value)}>
+                                    {tiposServicio.map(ts => (
+                                        <option key={ts.idTipoServicio} value={ts.idTipoServicio}>{ts.nombreServicio} - {formatCurrency(ts.precioBase)}</option>
+                                    ))}
+                                </select>
+                            </div>
+                            <div className="form-group" style={{display: 'flex', gap: '10px'}}>
+                                <div style={{flex: 1}}>
+                                    <label>Cantidad</label>
+                                    <input type="number" min="1" value={cantidadSelected} onChange={(e) => setCantidadSelected(parseInt(e.target.value) || 1)} />
+                                </div>
+                                <button className="btn-generar" onClick={handleAddServicio} style={{height: '42px', marginTop: 'auto'}}>
+                                    <FaPlus size={12} /> Agregar
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
                     <div className="table-card">
                         <div className="table-header-bg"></div>
                         <table className="servicios-table">
@@ -110,31 +311,24 @@ const Servicios = () => {
                                 </tr>
                             </thead>
                             <tbody>
-                                {servicios.map((srv) => (
-                                    <tr key={srv.id}>
-                                        <td>
-                                            <div className="srv-input-wrapper">
-                                                <input type="text" defaultValue={srv.nombre} />
-                                                <span className="srv-badge">{srv.tipo}</span>
-                                            </div>
-                                        </td>
-                                        <td>
-                                            <input type="number" defaultValue={srv.cantidad} className="text-center" />
-                                        </td>
-                                        <td>
-                                            <div className="price-input">
-                                                <span>$</span>
-                                                <input type="number" defaultValue={srv.precio} />
-                                            </div>
-                                        </td>
-                                        <td className="subtotal-cell">
-                                            {formatCurrency(srv.cantidad * srv.precio)}
-                                        </td>
+                                {servicios.map((srv, idx) => (
+                                    <tr key={idx}>
+                                        <td>{srv.nombre}</td>
+                                        <td className="text-center">{srv.cantidad}</td>
+                                        <td>{formatCurrency(srv.precio)}</td>
+                                        <td className="subtotal-cell">{formatCurrency(srv.subtotal)}</td>
                                         <td className="action-cell">
-                                            <MdDeleteOutline size={22} className="delete-icon" />
+                                            <MdDeleteOutline size={22} className="delete-icon" onClick={() => handleRemoveServicio(idx)} />
                                         </td>
                                     </tr>
                                 ))}
+                                {servicios.length === 0 && (
+                                    <tr>
+                                        <td colSpan="5" style={{textAlign: 'center', padding: '20px', color: '#94a3b8'}}>
+                                            Aún no has agregado servicios a la orden.
+                                        </td>
+                                    </tr>
+                                )}
                             </tbody>
                         </table>
                     </div>
@@ -195,11 +389,7 @@ const Servicios = () => {
                 </div>
             </div>
 
-            <button className="fab-btn">
-                <FaPlus size={20} />
-            </button>
-
-            <footer className="page-footer">
+            <footer className="page-footer" style={{position: 'relative', marginTop: '40px'}}>
                 <div className="footer-left">© 2023 ECONEXUS SOFTWARE DE GESTIÓN AMBIENTAL</div>
                 <div className="footer-right">
                     <span>POLÍTICA DE PRIVACIDAD</span>

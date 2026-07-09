@@ -20,4 +20,16 @@ public class OrdenServicio {
     @ManyToOne
     @JoinColumn(name = "id_solicitud_servicio")
     private SolicitudServicio solicitudServicio;
+    
+    @OneToMany(mappedBy = "ordenServicio", cascade = CascadeType.ALL, orphanRemoval = true)
+    private java.util.List<DetalleOrden> detalles;
+
+    public void setDetalles(java.util.List<DetalleOrden> detalles) {
+        this.detalles = detalles;
+        if (detalles != null) {
+            for (DetalleOrden d : detalles) {
+                d.setOrdenServicio(this);
+            }
+        }
+    }
 }

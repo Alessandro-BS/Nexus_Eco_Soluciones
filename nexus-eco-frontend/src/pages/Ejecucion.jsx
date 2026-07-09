@@ -1,28 +1,144 @@
-import React, { useState } from 'react';
-import { MdClose, MdSave, MdCloudUpload, MdImage, MdPictureAsPdf, MdSubject, MdStorage, MdOpenInNew, MdVisibility } from 'react-icons/md';
+import React, { useState, useEffect } from 'react';
+import { MdClose, MdSave, MdCloudUpload, MdImage, MdPictureAsPdf, MdSubject, MdStorage, MdOpenInNew, MdVisibility, MdArrowBack } from 'react-icons/md';
+import { getOrdenes, createPlanificacion, createEjecucion, getEjecuciones } from '../api/api';
 import './Ejecucion.css';
 
+const formatOS = (id) => `OS-2026-${String(id).padStart(4, '0')}`;
+
 const Ejecucion = () => {
+    const [view, setView] = useState('list'); // 'list' or 'detail'
+    const [ordenes, setOrdenes] = useState([]);
+    const [loading, setLoading] = useState(false);
+    const [selectedOrden, setSelectedOrden] = useState(null);
+
     const [ejecucion, setEjecucion] = useState({
-        planificacion: 'PLAN-2023-112: Desinsectación Zona Norte',
-        fecha: '2023-10-27',
+        fecha: new Date().toISOString().split('T')[0],
         resultado: 'Satisfactorio (Pass)',
         observaciones: ''
     });
 
+    useEffect(() => {
+        if (view === 'list') {
+            fetchOrdenes();
+        }
+    }, [view]);
+
+    const fetchOrdenes = async () => {
+        setLoading(true);
+        try {
+            const res = await getOrdenes();
+            setOrdenes(res.data);
+        } catch (error) {
+            console.error("Error fetching ordenes", error);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleSelectOrden = (orden) => {
+        setSelectedOrden(orden);
+        setView('detail');
+    };
+
+    const handleGuardarEjecucion = async () => {
+        try {
+            // 1. Create dummy planificacion under the hood to satisfy SQL Constraint
+            const planPayload = {
+                fechaProgramada: new Date(ejecucion.fecha).toISOString(),
+                estadoPlan: 'EJECUTADO',
+                ordenServicio: { idOrdenServicio: selectedOrden.idOrdenServicio }
+            };
+            const planRes = await createPlanificacion(planPayload);
+            const idPlan = planRes.data.idPlanificacionServicio;
+
+            // 2. Create the ejecucion
+            const ejecPayload = {
+                fechaEjecucion: new Date(ejecucion.fecha).toISOString(),
+                resultado: ejecucion.resultado,
+                observacionesEj: ejecucion.observaciones,
+                planificacionServicio: { idPlanificacionServicio: idPlan }
+            };
+            await createEjecucion(ejecPayload);
+            
+            alert("Ejecución guardada correctamente!");
+            setEjecucion({ fecha: new Date().toISOString().split('T')[0], resultado: 'Satisfactorio (Pass)', observaciones: '' });
+            setView('list');
+            
+        } catch (error) {
+            console.error("Error al guardar ejecución", error);
+            alert("Ocurrió un error al guardar.");
+        }
+    };
+
+    if (view === 'list') {
+        return (
+            <div className="ejecucion-page">
+                <div className="breadcrumb">GESTIÓN / EJECUCIÓN</div>
+                
+                <div className="page-header">
+                    <div>
+                        <h1 className="page-title">Seleccionar Orden para Ejecutar</h1>
+                        <p className="page-subtitle">Elija una Orden de Servicio de la lista para registrar su ejecución.</p>
+                    </div>
+                </div>
+
+                <div className="table-container" style={{background: 'white', border: '1px solid #e2e8f0', borderRadius: '4px'}}>
+                    <table style={{width: '100%', borderCollapse: 'collapse'}}>
+                        <thead>
+                            <tr style={{background: '#f8fafc', borderBottom: '1px solid #e2e8f0', textAlign: 'left', fontSize: '12px', color: '#64748b'}}>
+                                <th style={{padding: '16px'}}>ORDEN SERVICIO</th>
+                                <th style={{padding: '16px'}}>FECHA ORDEN</th>
+                                <th style={{padding: '16px'}}>CLIENTE</th>
+                                <th style={{padding: '16px'}}>ESTADO</th>
+                                <th style={{padding: '16px'}}>ACCIÓN</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {loading ? (
+                                <tr><td colSpan="5" style={{textAlign: 'center', padding: '20px'}}>Cargando...</td></tr>
+                            ) : ordenes.length === 0 ? (
+                                <tr><td colSpan="5" style={{textAlign: 'center', padding: '20px'}}>No hay órdenes de servicio pendientes.</td></tr>
+                            ) : (
+                                ordenes.map(ord => (
+                                    <tr key={ord.idOrdenServicio} style={{borderBottom: '1px solid #f1f5f9'}}>
+                                        <td style={{padding: '16px', fontWeight: 'bold'}}>{formatOS(ord.idOrdenServicio)}</td>
+                                        <td style={{padding: '16px'}}>{new Date(ord.fechaOrden).toLocaleDateString()}</td>
+                                        <td style={{padding: '16px'}}>{ord.solicitudServicio?.cliente?.razonSocial}</td>
+                                        <td style={{padding: '16px'}}>{ord.estadoOrden}</td>
+                                        <td style={{padding: '16px'}}>
+                                            <button 
+                                                className="btn-outline" 
+                                                style={{padding: '6px 12px', fontSize: '12px'}}
+                                                onClick={() => handleSelectOrden(ord)}
+                                            >
+                                                Registrar Ejecución
+                                            </button>
+                                        </td>
+                                    </tr>
+                                ))
+                            )}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        );
+    }
+
     return (
         <div className="ejecucion-page">
             <div className="breadcrumb">
-                <span className="badge-dark">EJECUCION_SERVICIO</span> ID: EXEC-2023-9842
+                <span className="badge-dark">EJECUCION_SERVICIO</span> / NUEVA_EJECUCION
             </div>
             
             <div className="page-header">
-                <h1 className="page-title">Ejecución de Servicio</h1>
-                <div className="header-actions">
-                    <button className="btn-cancelar">
-                        <MdClose size={16} /> Cancelar
+                <div>
+                    <h1 className="page-title">Ejecución de Servicio</h1>
+                    <button className="btn-cancelar" style={{marginTop: '10px'}} onClick={() => setView('list')}>
+                        <MdArrowBack size={16} /> Volver a lista
                     </button>
-                    <button className="btn-guardar">
+                </div>
+                <div className="header-actions">
+                    <button className="btn-guardar" onClick={handleGuardarEjecucion}>
                         <MdSave size={16} /> Guardar ejecución
                     </button>
                 </div>
@@ -30,19 +146,15 @@ const Ejecucion = () => {
 
             <div className="top-layout">
                 <div className="form-card">
-                    <h2 className="card-title">Evidencias del servicio</h2>
+                    <h2 className="card-title">Detalles de la ejecución</h2>
                     
                     <div className="form-group mb-16">
-                        <label>Planificación (Reference)</label>
-                        <select 
-                            value={ejecucion.planificacion} 
-                            onChange={(e) => setEjecucion({...ejecucion, planificacion: e.target.value})}
-                        >
-                            <option value="PLAN-2023-112: Desinsectación Zona Norte">PLAN-2023-112: Desinsectación Zona Norte</option>
-                        </select>
-                        <div className="reference-badges">
-                            <span className="ref-badge"><strong>ORDEN_SERVICIO:</strong> #9822</span>
-                            <span className="ref-badge"><strong>CLIENTE:</strong> LogisCorp S.A.</span>
+                        <label>Orden a Ejecutar (Referencia)</label>
+                        <input type="text" readOnly value={formatOS(selectedOrden?.idOrdenServicio)} style={{width: '100%', padding: '10px', background: '#f8fafc', border: '1px solid #e2e8f0'}} />
+                        <div className="reference-badges" style={{marginTop: '10px', display: 'flex', gap: '10px'}}>
+                            <span className="ref-badge" style={{background: '#f1f5f9', padding: '4px 8px', borderRadius: '4px', fontSize: '12px'}}>
+                                <strong>CLIENTE:</strong> {selectedOrden?.solicitudServicio?.cliente?.razonSocial}
+                            </span>
                         </div>
                     </div>
 
@@ -82,98 +194,30 @@ const Ejecucion = () => {
                     <div className="upload-header">
                         <div>
                             <h2 className="card-title inline-title">Evidencias del servicio</h2>
-                            <span className="badge-green-light">ACTIVE_SYNC</span>
+                            <span className="badge-green-light">PENDIENTE MONGODB</span>
                         </div>
-                        <p className="upload-subtitle">Stored in MongoDB Infrastructure</p>
+                        <p className="upload-subtitle">Esta sección se conectará a MongoDB en la Fase 6</p>
                     </div>
 
-                    <div className="dropzone">
+                    <div className="dropzone" style={{opacity: 0.5, pointerEvents: 'none'}}>
                         <MdCloudUpload size={32} className="dropzone-icon" />
                         <h3>Arrastra archivos aquí o haz clic</h3>
                         <p>JPG, PNG, PDF o Actas Firmadas (Max 10MB)</p>
-                        <button className="btn-subir">Subir evidencia</button>
+                        <button className="btn-subir" style={{background: '#cbd5e1', cursor: 'not-allowed'}}>Subir evidencia</button>
                     </div>
 
-                    <div className="evidence-list">
+                    <div className="evidence-list" style={{opacity: 0.5}}>
                         <div className="evidence-item">
                             <div className="evidence-icon-wrapper blue-light">
                                 <MdImage size={20} className="icon-blue" />
                             </div>
                             <div className="evidence-info">
                                 <h4>Foto del servicio</h4>
-                                <p>Pendiente de carga</p>
-                            </div>
-                        </div>
-
-                        <div className="evidence-item">
-                            <div className="evidence-icon-wrapper blue-light">
-                                <MdPictureAsPdf size={20} className="icon-blue" />
-                            </div>
-                            <div className="evidence-info">
-                                <h4>PDF o acta</h4>
-                                <p>Pendiente de carga</p>
-                            </div>
-                        </div>
-
-                        <div className="evidence-item">
-                            <div className="evidence-icon-wrapper gray-light">
-                                <MdSubject size={20} className="icon-gray" />
-                            </div>
-                            <div className="evidence-info">
-                                <h4>Observaciones</h4>
-                                <p>Sin comentarios adjuntos</p>
+                                <p>Función deshabilitada (Fase 6)</p>
                             </div>
                         </div>
                     </div>
-
-                    <div className="upload-footer">
-                        <span className="storage-info">Total Almacenado: 4.2 MB</span>
-                        <span className="db-info">
-                            <MdStorage size={14} /> MongoDB Atlas Cloud
-                        </span>
-                    </div>
                 </div>
-            </div>
-
-            <div className="table-card">
-                <div className="table-header">
-                    <h2 className="card-title">Ejecuciones recientes en esta zona</h2>
-                    <a href="#" className="link-historico">
-                        Ver histórico completo <MdOpenInNew size={14} />
-                    </a>
-                </div>
-                <table className="recent-table">
-                    <thead>
-                        <tr>
-                            <th>FECHA</th>
-                            <th>TÉCNICO</th>
-                            <th>RESULTADO</th>
-                            <th>EVIDENCIAS</th>
-                            <th>ACCIONES</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <tr>
-                            <td>15 Oct 2023</td>
-                            <td>Carlos Méndez</td>
-                            <td>
-                                <span className="status-label">
-                                    <span className="dot-green"></span> Completado
-                                </span>
-                            </td>
-                            <td>
-                                <div className="evidence-thumbnails">
-                                    <div className="thumb gray"></div>
-                                    <div className="thumb dark"></div>
-                                    <div className="thumb-count">+2</div>
-                                </div>
-                            </td>
-                            <td>
-                                <MdVisibility size={20} className="action-icon" />
-                            </td>
-                        </tr>
-                    </tbody>
-                </table>
             </div>
         </div>
     );

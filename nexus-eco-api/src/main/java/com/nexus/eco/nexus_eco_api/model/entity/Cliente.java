@@ -18,6 +18,15 @@ public class Cliente {
     @Column(name = "email_cliente")
     private String emailCliente;
     private String estado = "ACTIVO";
-    @OneToMany(mappedBy = "cliente")
+    @OneToMany(mappedBy = "cliente", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<ContactoCliente> contactos;
+
+    public void setContactos(List<ContactoCliente> contactos) {
+        this.contactos = contactos;
+        if (contactos != null) {
+            for (ContactoCliente c : contactos) {
+                c.setCliente(this);
+            }
+        }
+    }
 }
