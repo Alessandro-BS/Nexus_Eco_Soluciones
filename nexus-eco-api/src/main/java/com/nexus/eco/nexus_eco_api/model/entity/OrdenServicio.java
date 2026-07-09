@@ -17,7 +17,7 @@ public class OrdenServicio {
     private String estadoOrden = "EN_PROCESO";
     @Column(name = "monto_total")
     private BigDecimal montoTotal;
-    @ManyToOne
+    @ManyToOne(cascade = {CascadeType.PERSIST, CascadeType.MERGE})
     @JoinColumn(name = "id_solicitud_servicio")
     private SolicitudServicio solicitudServicio;
     
