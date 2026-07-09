@@ -2,7 +2,7 @@ spring:
   application:
     name: nexus-eco-api
   datasource:
-    url: jdbc:sqlserver://Aless:1433;databaseName=NexusEcoDB;encrypt=true;trustServerCertificate=true;
+    url: jdbc:sqlserver://localhost:1433;databaseName=NexusEcoDB;encrypt=true;trustServerCertificate=true;
     username: nexus_user
     password: nexus123
     driver-class-name: com.microsoft.sqlserver.jdbc.SQLServerDriver

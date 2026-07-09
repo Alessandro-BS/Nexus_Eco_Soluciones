@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { MdCorporateFare, MdPerson, MdSave, MdInfoOutline, MdAdd, MdArrowBack } from 'react-icons/md';
-import { getClientes, createCliente } from '../api/api';
+import { getClientes, createCliente, updateCliente, deleteCliente } from '../api/api';
 import './Clientes.css';
 
 const Clientes = () => {
     const [view, setView] = useState('list'); // 'list' or 'form'
     const [clientes, setClientes] = useState([]);
     const [loading, setLoading] = useState(false);
+    const [editingId, setEditingId] = useState(null);
 
     const [cliente, setCliente] = useState({
         ruc: '',
@@ -17,7 +18,8 @@ const Clientes = () => {
         contactoNombre: '',
         contactoCargo: '',
         contactoTelefono: '',
-        contactoCorreo: ''
+        contactoCorreo: '',
+        idContactoCliente: null
     });
 
     useEffect(() => {
@@ -42,8 +44,62 @@ const Clientes = () => {
         setCliente({ ...cliente, [e.target.name]: e.target.value });
     };
 
+    const handleEdit = (c) => {
+        setEditingId(c.idCliente);
+        const contact = c.contactos && c.contactos.length > 0 ? c.contactos[0] : {};
+        setCliente({
+            ruc: c.ruc || '',
+            razonSocial: c.razonSocial || '',
+            direccion: c.direccion || '',
+            correo: c.emailCliente || '',
+            estado: c.estado === 'ACTIVO' ? 'Activo' : 'Inactivo',
+            contactoNombre: contact.nombreCon || '',
+            contactoCargo: contact.cargo || '',
+            contactoTelefono: contact.telefonoCon || '',
+            contactoCorreo: contact.emailContacto || '',
+            idContactoCliente: contact.idContactoCliente || null
+        });
+        setView('form');
+    };
+
+    const handleDelete = async (id) => {
+        if (window.confirm("¿Está seguro de que desea eliminar este cliente?")) {
+            try {
+                await deleteCliente(id);
+                alert("Cliente eliminado exitosamente");
+                fetchClientes();
+            } catch (error) {
+                console.error("Error al eliminar cliente", error);
+                alert("No se pudo eliminar el cliente. Verifique que no tenga solicitudes asociadas.");
+            }
+        }
+    };
+
+    const handleNew = () => {
+        setEditingId(null);
+        setCliente({
+            ruc: '',
+            razonSocial: '',
+            direccion: '',
+            correo: '',
+            estado: 'Activo',
+            contactoNombre: '',
+            contactoCargo: '',
+            contactoTelefono: '',
+            contactoCorreo: '',
+            idContactoCliente: null
+        });
+        setView('form');
+    };
+
     const handleSave = async () => {
+        if (!cliente.ruc || !cliente.razonSocial) {
+            alert("RUC y Razón Social son requeridos.");
+            return;
+        }
+
         const payload = {
+            idCliente: editingId,
             ruc: cliente.ruc,
             razonSocial: cliente.razonSocial,
             direccion: cliente.direccion,
@@ -51,6 +107,7 @@ const Clientes = () => {
             estado: cliente.estado === 'Activo' ? 'ACTIVO' : 'INACTIVO',
             contactos: [
                 {
+                    idContactoCliente: cliente.idContactoCliente || null,
                     nombreCon: cliente.contactoNombre,
                     cargo: cliente.contactoCargo,
                     telefonoCon: cliente.contactoTelefono,
@@ -60,13 +117,18 @@ const Clientes = () => {
         };
 
         try {
-            await createCliente(payload);
-            alert("Cliente guardado exitosamente");
+            if (editingId) {
+                await updateCliente(editingId, payload);
+                alert("Cliente actualizado exitosamente");
+            } else {
+                await createCliente(payload);
+                alert("Cliente guardado exitosamente");
+            }
             setView('list');
-            // Reset form
+            setEditingId(null);
             setCliente({
                 ruc: '', razonSocial: '', direccion: '', correo: '', estado: 'Activo',
-                contactoNombre: '', contactoCargo: '', contactoTelefono: '', contactoCorreo: ''
+                contactoNombre: '', contactoCargo: '', contactoTelefono: '', contactoCorreo: '', idContactoCliente: null
             });
         } catch (error) {
             console.error("Error al guardar cliente", error);
@@ -85,7 +147,7 @@ const Clientes = () => {
                         <p className="page-subtitle">Visualiza y administra todos los clientes registrados en el sistema.</p>
                     </div>
                     <div className="header-actions">
-                        <button className="btn-nuevo" onClick={() => setView('form')}>
+                        <button className="btn-nuevo" onClick={handleNew}>
                             <MdAdd size={18} style={{ verticalAlign: 'middle', marginRight: '5px' }}/> Nuevo Cliente
                         </button>
                     </div>
@@ -100,13 +162,14 @@ const Clientes = () => {
                                 <th>Contacto Principal</th>
                                 <th>Teléfono</th>
                                 <th>Estado</th>
+                                <th>Acciones</th>
                             </tr>
                         </thead>
                         <tbody>
                             {loading ? (
-                                <tr><td colSpan="5" style={{ textAlign: 'center' }}>Cargando...</td></tr>
+                                <tr><td colSpan="6" style={{ textAlign: 'center' }}>Cargando...</td></tr>
                             ) : clientes.length === 0 ? (
-                                <tr><td colSpan="5" style={{ textAlign: 'center' }}>No hay clientes registrados.</td></tr>
+                                <tr><td colSpan="6" style={{ textAlign: 'center' }}>No hay clientes registrados.</td></tr>
                             ) : (
                                 clientes.map(c => (
                                     <tr key={c.idCliente}>
@@ -118,6 +181,10 @@ const Clientes = () => {
                                             <span className={`status-badge status-${c.estado?.toLowerCase()}`}>
                                                 {c.estado}
                                             </span>
+                                        </td>
+                                        <td>
+                                            <button className="btn-table-edit" onClick={() => handleEdit(c)}>Editar</button>
+                                            <button className="btn-table-delete" onClick={() => handleDelete(c.idCliente)}>Eliminar</button>
                                         </td>
                                     </tr>
                                 ))
@@ -135,8 +202,8 @@ const Clientes = () => {
             
             <div className="page-header">
                 <div>
-                    <h1 className="page-title">Alta de Nuevo Cliente</h1>
-                    <p className="page-subtitle">Complete la información requerida para dar de alta un nuevo cliente y su contacto principal.</p>
+                    <h1 className="page-title">{editingId ? 'Editar Cliente' : 'Alta de Nuevo Cliente'}</h1>
+                    <p className="page-subtitle">Complete la información requerida para dar de alta o modificar un cliente y su contacto principal.</p>
                 </div>
                 <div className="header-actions">
                     <button className="btn-cancelar" onClick={() => setView('list')}>
@@ -157,7 +224,7 @@ const Clientes = () => {
                 <div className="form-grid">
                     <div className="form-group">
                         <label>RUC</label>
-                        <input type="text" name="ruc" placeholder="20XXXXXXXXX" value={cliente.ruc} onChange={handleChange} />
+                        <input type="text" name="ruc" placeholder="20XXXXXXXXX" value={cliente.ruc} onChange={handleChange} disabled={!!editingId} />
                     </div>
                     <div className="form-group">
                         <label>Razón social</label>
