@@ -242,3 +242,37 @@
 .btn-nuevo:hover {
     background: #1e293b;
 }
+
+.btn-table-edit {
+    padding: 6px 12px;
+    background: #0f172a;
+    border: none;
+    border-radius: 4px;
+    color: white;
+    font-weight: 600;
+    font-size: 12px;
+    cursor: pointer;
+    margin-right: 8px;
+    transition: all 0.2s;
+}
+
+.btn-table-edit:hover {
+    background: #1e293b;
+}
+
+.btn-table-delete {
+    padding: 6px 12px;
+    background: #ef4444;
+    border: none;
+    border-radius: 4px;
+    color: white;
+    font-weight: 600;
+    font-size: 12px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.btn-table-delete:hover {
+    background: #dc2626;
+}
+
