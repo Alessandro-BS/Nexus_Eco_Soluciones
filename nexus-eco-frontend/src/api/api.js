@@ -15,17 +15,17 @@ export const updateCliente = (id, data) => api.put(`/clientes/${id}`, data);
 export const deleteCliente = (id) => api.delete(`/clientes/${id}`);
 
 // Solicitudes API
-export const getSolicitudes = () => api.get('/solicitudservicios');
-export const createSolicitud = (data) => api.post('/solicitudservicios', data);
-export const updateSolicitud = (id, data) => api.put(`/solicitudservicios/${id}`, data);
+export const getSolicitudes = () => api.get('/solicitud-servicios');
+export const createSolicitud = (data) => api.post('/solicitud-servicios', data);
+export const updateSolicitud = (id, data) => api.put(`/solicitud-servicios/${id}`, data);
 
 // Ejecucion / Evidencias API
-export const getEjecuciones = () => api.get('/ejecucionservicios');
-export const createEjecucion = (data) => api.post('/ejecucionservicios', data);
+export const getEjecuciones = () => api.get('/ejecucion-servicios');
+export const createEjecucion = (data) => api.post('/ejecucion-servicios', data);
 export const uploadEvidencia = (file) => {
     const formData = new FormData();
     formData.append('file', file);
-    return api.post('/archivos/upload', formData, {
+    return api.post('/evidencias/upload', formData, {
         headers: {
             'Content-Type': 'multipart/form-data'
         }
@@ -53,11 +53,11 @@ export const getIncidentesByEjecucion = (idEjecucion) => api.get(`/incidentes?ej
 export const createIncidente = (data) => api.post('/incidentes', data);
 
 // Informes API
-export const getInformes = () => api.get('/informeservicios');
-export const createInforme = (data) => api.post('/informeservicios', data);
+export const getInformes = () => api.get('/informe-servicios');
+export const createInforme = (data) => api.post('/informe-servicios', data);
 
 // Planificacion API
-export const getPlanificaciones = () => api.get('/planificacionservicios');
-export const createPlanificacion = (data) => api.post('/planificacionservicios', data);
+export const getPlanificaciones = () => api.get('/planificacion-servicios');
+export const createPlanificacion = (data) => api.post('/planificacion-servicios', data);
 
 export default api;

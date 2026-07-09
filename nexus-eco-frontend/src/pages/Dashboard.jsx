@@ -1,93 +1,138 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   AreaChart, Area, 
   PieChart, Pie, Cell, 
   BarChart, Bar, 
-  XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer 
+  XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend
 } from 'recharts';
+import { getOrdenes, getEjecuciones, getAuditorias, getIncidentes } from '../api/api';
 import './Dashboard.css';
 
-// --- MOCK DATA ---
-const facturacionMensual = [
-  { mes: 'ene 2025', monto: 8000 },
-  { mes: 'feb 2025', monto: 5000 },
-  { mes: 'mar 2025', monto: 10000 },
-  { mes: 'abr 2025', monto: 14000 },
-  { mes: 'may 2025', monto: 9000 },
-  { mes: 'jun 2025', monto: 17000 },
-  { mes: 'jul 2025', monto: 3000 },
-  { mes: 'ago 2025', monto: 8000 },
-  { mes: 'sep 2025', monto: 8000 },
-  { mes: 'oct 2025', monto: 14000 },
-  { mes: 'nov 2025', monto: 3000 },
-  { mes: 'dic 2025', monto: 20000 },
-  { mes: 'ene 2026', monto: 3000 },
-  { mes: 'feb 2026', monto: 11000 },
-  { mes: 'mar 2026', monto: 5000 },
-  { mes: 'abr 2026', monto: 14000 },
-];
-
-const calificacionEspecialidad = [
-  { nombre: 'Especialista en Pla...', calificacion: 3.6 },
-  { nombre: 'Ingeniero Químico', calificacion: 3.7 },
-  { nombre: 'Auditor Ambiental', calificacion: 3.7 },
-  { nombre: 'Ingeniero Sanitario', calificacion: 3.9 },
-];
-
-// Interactive Pie Chart Data
-const donutData = {
-    "Facturacion Total": [
-        { name: '2025', value: 537.54, fill: '#34a853' }, 
-        { name: '2026', value: 166.05, fill: '#80e27e' }
-    ],
-    "Facturacion Promedio": [
-        { name: '2025', value: 3, fill: '#34a853' }, 
-        { name: '2026', value: 3, fill: '#80e27e' }
-    ],
-    "Cantidad Incidentes": [
-        { name: '2025', value: 42, fill: '#34a853' }, 
-        { name: '2026', value: 12, fill: '#80e27e' }
-    ],
-    "Calificacion Promedio": [
-        { name: '2025', value: 3.7, fill: '#34a853' }, 
-        { name: '2026', value: 3.8, fill: '#80e27e' }
-    ]
-};
-
-const formatValue = (tab, value) => {
-    if (tab.includes('Facturacion')) return `${value} mil`;
-    return `${value}`;
-};
-
-const tablaEmpleados = [
-  { nombre: 'Ing. Carlos Mendoza', cancelado: '2.814,37', completado: '180.119,68', pendiente: '16.886,22', total: '199.820,27' },
-  { nombre: 'Ing. Marcos Torres', cancelado: '8.443,11', completado: '143.532,87', pendiente: '22.514,96', total: '174.490,94' },
-  { nombre: 'Lic. Sofía Ramos', cancelado: '16.886,22', completado: '149.161,61', pendiente: '19.700,59', total: '185.748,42' },
-  { nombre: 'Tec. Juan Palacios', cancelado: '11.257,48', completado: '121.017,91', pendiente: '11.257,48', total: '143.532,87' }
-];
+const COLORS = ['#34a853', '#80e27e', '#fbbc05', '#ea4335', '#4285f4'];
 
 const Dashboard = () => {
-    const [activeTab, setActiveTab] = useState('Facturacion Total');
+    const [loading, setLoading] = useState(true);
+    
+    // KPIs
+    const [totalOrdenes, setTotalOrdenes] = useState(0);
+    const [totalEjecuciones, setTotalEjecuciones] = useState(0);
+    const [promedioAuditorias, setPromedioAuditorias] = useState(0);
+    const [totalIncidentes, setTotalIncidentes] = useState(0);
+
+    // Chart Data
+    const [ordenesPorMes, setOrdenesPorMes] = useState([]);
+    const [estadoOrdenes, setEstadoOrdenes] = useState([]);
+    const [incidentesGravedad, setIncidentesGravedad] = useState([]);
+    const [rendimientoAuditores, setRendimientoAuditores] = useState([]);
+
+    useEffect(() => {
+        fetchData();
+    }, []);
+
+    const fetchData = async () => {
+        try {
+            setLoading(true);
+            const [ordenesRes, ejecucionesRes, auditoriasRes, incidentesRes] = await Promise.all([
+                getOrdenes(),
+                getEjecuciones(),
+                getAuditorias(),
+                getIncidentes()
+            ]);
+
+            const ordenes = ordenesRes.data;
+            const ejecuciones = ejecucionesRes.data;
+            const auditorias = auditoriasRes.data;
+            const incidentes = incidentesRes.data;
+
+            // 1. KPIs
+            setTotalOrdenes(ordenes.length);
+            setTotalEjecuciones(ejecuciones.length);
+            setTotalIncidentes(incidentes.length);
+            
+            if (auditorias.length > 0) {
+                const sum = auditorias.reduce((acc, curr) => acc + curr.calificacion, 0);
+                setPromedioAuditorias((sum / auditorias.length).toFixed(1));
+            }
+
+            // 2. Órdenes por mes (Area Chart)
+            const mesesMap = {};
+            ordenes.forEach(ord => {
+                if (ord.fechaOrden) {
+                    const date = new Date(ord.fechaOrden);
+                    const mesKey = date.toLocaleString('es-ES', { month: 'short', year: 'numeric' });
+                    mesesMap[mesKey] = (mesesMap[mesKey] || 0) + 1;
+                }
+            });
+            const ordenesData = Object.keys(mesesMap).map(k => ({ mes: k, cantidad: mesesMap[k] }));
+            setOrdenesPorMes(ordenesData);
+
+            // 3. Estado Órdenes (Donut Chart)
+            const estadoMap = {};
+            ordenes.forEach(ord => {
+                const estado = ord.estadoOrden || 'DESCONOCIDO';
+                estadoMap[estado] = (estadoMap[estado] || 0) + 1;
+            });
+            const estadoData = Object.keys(estadoMap).map(k => ({ name: k, value: estadoMap[k] }));
+            setEstadoOrdenes(estadoData);
+
+            // 4. Incidentes por gravedad (Bar Chart)
+            const gravedadMap = {};
+            incidentes.forEach(inc => {
+                const grav = inc.gravedad || 'MEDIA';
+                gravedadMap[grav] = (gravedadMap[grav] || 0) + 1;
+            });
+            const gravedadData = Object.keys(gravedadMap).map(k => ({ gravedad: k, cantidad: gravedadMap[k] }));
+            setIncidentesGravedad(gravedadData);
+
+            // 5. Rendimiento de Auditores (Table)
+            const auditorMap = {};
+            auditorias.forEach(aud => {
+                if (aud.empleado) {
+                    const nombre = aud.empleado.nombreEmp + ' ' + aud.empleado.apellidoEmp;
+                    if (!auditorMap[nombre]) {
+                        auditorMap[nombre] = { total: 0, sum: 0 };
+                    }
+                    auditorMap[nombre].total += 1;
+                    auditorMap[nombre].sum += aud.calificacion;
+                }
+            });
+            const auditoresData = Object.keys(auditorMap).map(k => ({
+                nombre: k,
+                cantidad: auditorMap[k].total,
+                promedio: (auditorMap[k].sum / auditorMap[k].total).toFixed(1)
+            })).sort((a, b) => b.cantidad - a.cantidad);
+            setRendimientoAuditores(auditoresData);
+
+        } catch (error) {
+            console.error("Error fetching dashboard data", error);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    if (loading) {
+        return <div style={{padding: '40px', textAlign: 'center'}}>Cargando estadísticas...</div>;
+    }
 
     return (
         <div className="dashboard-container">
             {/* KPIs */}
             <div className="kpi-grid">
                 <div className="kpi-card">
-                    <div className="kpi-value">703,59 mil</div>
-                    <div className="kpi-label">FACTURACIÓN TOTAL</div>
+                    <div className="kpi-value">{totalOrdenes}</div>
+                    <div className="kpi-label">ÓRDENES DE SERVICIO TOTALES</div>
                 </div>
                 <div className="kpi-card">
-                    <div className="kpi-value">3 mil</div>
-                    <div className="kpi-label">FACTURACIÓN PROMEDIO</div>
+                    <div className="kpi-value">{totalEjecuciones}</div>
+                    <div className="kpi-label">SERVICIOS EJECUTADOS</div>
                 </div>
                 <div className="kpi-card">
-                    <div className="kpi-value">54</div>
-                    <div className="kpi-label">CANTIDAD DE SERVICIOS</div>
-                </div>
-                <div className="kpi-card">
-                    <div className="kpi-value">3,7</div>
+                    <div className="kpi-value">{promedioAuditorias} <span style={{fontSize: '16px'}}>⭐</span></div>
                     <div className="kpi-label">CALIFICACIÓN PROMEDIO</div>
+                </div>
+                <div className="kpi-card">
+                    <div className="kpi-value" style={{color: totalIncidentes > 0 ? '#ea4335' : '#34a853'}}>{totalIncidentes}</div>
+                    <div className="kpi-label">INCIDENTES REPORTADOS</div>
                 </div>
             </div>
 
@@ -96,48 +141,32 @@ const Dashboard = () => {
                 
                 {/* Interactive Donut Chart */}
                 <div className="chart-card">
-                    <div className="chart-tabs">
-                        {Object.keys(donutData).map((tab) => (
-                            <div 
-                                key={tab} 
-                                className={`chart-tab ${activeTab === tab ? 'active' : ''}`}
-                                onClick={() => setActiveTab(tab)}
-                            >
-                                {tab}
-                            </div>
-                        ))}
-                    </div>
-                    
-                    <div className="chart-title">{activeTab} por Año</div>
+                    <div className="chart-title">Estado de Órdenes de Servicio</div>
                     <ResponsiveContainer width="100%" height={300}>
                         <PieChart>
                             <Pie
-                                data={donutData[activeTab]}
+                                data={estadoOrdenes}
                                 cx="50%"
                                 cy="50%"
                                 innerRadius={80}
                                 outerRadius={120}
                                 dataKey="value"
-                                label={({ name, value }) => formatValue(activeTab, value)}
+                                label={({ name, value }) => `${name} (${value})`}
                             >
-                                {donutData[activeTab].map((entry, index) => (
-                                    <Cell key={`cell-${index}`} fill={entry.fill} />
+                                {estadoOrdenes.map((entry, index) => (
+                                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                                 ))}
                             </Pie>
-                            <Tooltip formatter={(value) => formatValue(activeTab, value)} />
+                            <Tooltip />
                         </PieChart>
                     </ResponsiveContainer>
-                    <div style={{ display: 'flex', justifyContent: 'flex-start', gap: '20px', fontSize: '14px', marginTop: '-10px' }}>
-                        <span style={{ color: '#34a853' }}>● 2025</span>
-                        <span style={{ color: '#80e27e' }}>● 2026</span>
-                    </div>
                 </div>
 
-                {/* Suma de monto total (Area) */}
+                {/* Suma de monto total (Area) -> Evolución de órdenes */}
                 <div className="chart-card">
-                    <div className="chart-title">Suma de monto total por año por Año, Trimestre y Mes</div>
+                    <div className="chart-title">Evolución de Servicios Solicitados (Mes a Mes)</div>
                     <ResponsiveContainer width="100%" height={300}>
-                        <AreaChart data={facturacionMensual} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                        <AreaChart data={ordenesPorMes} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                             <defs>
                                 <linearGradient id="colorMonto" x1="0" y1="0" x2="0" y2="1">
                                     <stop offset="5%" stopColor="#80e27e" stopOpacity={0.8}/>
@@ -145,58 +174,62 @@ const Dashboard = () => {
                                 </linearGradient>
                             </defs>
                             <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                            <XAxis dataKey="mes" tick={{ fontSize: 12 }} interval="preserveStartEnd" minTickGap={30} />
-                            <YAxis tickFormatter={(value) => `${value / 1000} mil`} tick={{ fontSize: 12 }} />
-                            <Tooltip formatter={(value) => `${value}`} />
-                            <Area type="linear" dataKey="monto" stroke="#000" strokeWidth={2} fillOpacity={1} fill="url(#colorMonto)" />
+                            <XAxis dataKey="mes" tick={{ fontSize: 12 }} />
+                            <YAxis tick={{ fontSize: 12 }} />
+                            <Tooltip />
+                            <Area type="linear" dataKey="cantidad" stroke="#34a853" strokeWidth={2} fillOpacity={1} fill="url(#colorMonto)" />
                         </AreaChart>
                     </ResponsiveContainer>
                 </div>
 
-                {/* Calificacion por Especialidad (Bar) */}
+                {/* Incidentes por Gravedad (Bar) */}
                 <div className="chart-card" style={{ gridColumn: '1 / -1' }}>
-                    <div className="chart-title">Calificación Promedio por especialidad</div>
+                    <div className="chart-title">Incidentes Reportados por Gravedad</div>
                     <ResponsiveContainer width="100%" height={250}>
-                        <BarChart data={calificacionEspecialidad} layout="vertical" margin={{ top: 5, right: 30, left: 40, bottom: 5 }}>
+                        <BarChart data={incidentesGravedad} layout="vertical" margin={{ top: 5, right: 30, left: 40, bottom: 5 }}>
                             <CartesianGrid strokeDasharray="3 3" horizontal={false} />
-                            <XAxis type="number" domain={[0, 4]} hide />
-                            <YAxis dataKey="nombre" type="category" tick={{ fontSize: 12 }} width={150} />
+                            <XAxis type="number" allowDecimals={false} />
+                            <YAxis dataKey="gravedad" type="category" tick={{ fontSize: 12 }} width={80} />
                             <Tooltip />
-                            <Bar dataKey="calificacion" fill="#80e27e" barSize={30} label={{ position: 'insideRight', fill: '#000' }} />
+                            <Bar dataKey="cantidad" fill="#ea4335" barSize={40} label={{ position: 'insideRight', fill: '#fff' }}>
+                                {
+                                    incidentesGravedad.map((entry, index) => (
+                                        <Cell key={`cell-${index}`} fill={entry.gravedad.toUpperCase() === 'ALTA' ? '#d32f2f' : entry.gravedad.toUpperCase() === 'MEDIA' ? '#f57c00' : '#fbc02d'} />
+                                    ))
+                                }
+                            </Bar>
                         </BarChart>
                     </ResponsiveContainer>
                 </div>
 
                 {/* Data Table */}
                 <div className="chart-card" style={{ gridColumn: '1 / -1' }}>
+                    <div className="chart-title" style={{marginBottom: '10px'}}>Rendimiento de Auditores</div>
                     <div className="data-table-container">
                         <table className="data-table">
                             <thead>
                                 <tr>
-                                    <th>nombre</th>
-                                    <th>Cancelado</th>
-                                    <th>Completado</th>
-                                    <th>Pendiente</th>
-                                    <th>Total</th>
+                                    <th>Nombre del Auditor</th>
+                                    <th>Total de Auditorías Realizadas</th>
+                                    <th>Promedio de Calificación Otorgada</th>
                                 </tr>
                             </thead>
                             <tbody>
-                                {tablaEmpleados.map((emp, idx) => (
-                                    <tr key={idx}>
-                                        <td>{emp.nombre}</td>
-                                        <td>{emp.cancelado}</td>
-                                        <td>{emp.completado}</td>
-                                        <td>{emp.pendiente}</td>
-                                        <td>{emp.total}</td>
-                                    </tr>
-                                ))}
-                                <tr>
-                                    <td>Total</td>
-                                    <td>39.401,18</td>
-                                    <td>593.832,07</td>
-                                    <td>70.359,25</td>
-                                    <td>703.592,50</td>
-                                </tr>
+                                {rendimientoAuditores.length === 0 ? (
+                                    <tr><td colSpan="3" style={{textAlign: 'center'}}>No hay auditorías registradas</td></tr>
+                                ) : (
+                                    rendimientoAuditores.map((aud, idx) => (
+                                        <tr key={idx}>
+                                            <td style={{fontWeight: 'bold'}}>{aud.nombre}</td>
+                                            <td>{aud.cantidad}</td>
+                                            <td>
+                                                <div style={{display: 'flex', alignItems: 'center', gap: '5px'}}>
+                                                    {aud.promedio} <span style={{color: '#fbbc05'}}>⭐</span>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    ))
+                                )}
                             </tbody>
                         </table>
                     </div>

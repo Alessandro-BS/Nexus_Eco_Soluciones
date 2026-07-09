@@ -15,5 +15,9 @@ spring:
       hibernate.format_sql: true
   mongodb:
     uri: mongodb://localhost:27017/nexus_eco_surveys
+  servlet:
+    multipart:
+      max-file-size: 15MB
+      max-request-size: 15MB
 server:
   port: 8080

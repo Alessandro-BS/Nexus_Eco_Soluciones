@@ -70,7 +70,7 @@ const Servicios = () => {
     };
 
     const formatCurrency = (amount) => {
-        return new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP' }).format(amount);
+        return new Intl.NumberFormat('es-PE', { style: 'currency', currency: 'PEN' }).format(amount);
     };
 
     const handleAddServicio = () => {
@@ -94,7 +94,7 @@ const Servicios = () => {
     };
 
     const subtotal = servicios.reduce((acc, curr) => acc + curr.subtotal, 0);
-    const iva = subtotal * 0.19;
+    const iva = subtotal * 0.18;
     const total = subtotal + iva;
 
     const handleGenerarOrden = async () => {
@@ -186,7 +186,7 @@ const Servicios = () => {
                                         <td>{formatCurrency(ord.montoTotal)}</td>
                                         <td>
                                             <span className={`status-badge status-${ord.estadoOrden?.toLowerCase()}`}>
-                                                {ord.estadoOrden}
+                                                {ord.estadoOrden?.replace('_', ' ')}
                                             </span>
                                         </td>
                                     </tr>
@@ -229,7 +229,7 @@ const Servicios = () => {
                         </div>
                         
                         <div className="form-group mb-20">
-                            <label>Cliente (SOLICITUD_SERVICIO.cliente_id)</label>
+                            <label>Cliente</label>
                             <select value={solicitud.idCliente} onChange={(e) => setSolicitud({...solicitud, idCliente: e.target.value})}>
                                 {clientes.map(c => (
                                     <option key={c.idCliente} value={c.idCliente}>{c.razonSocial} - {c.ruc}</option>
@@ -257,7 +257,7 @@ const Servicios = () => {
                         <div className="form-group mb-20">
                             <label>Estado de solicitud</label>
                             <div className="estado-input">
-                                <span className="status-dot"></span> EN_PROCESO
+                                <span className="status-dot"></span> EN PROCESO
                             </div>
                         </div>
 
@@ -345,7 +345,7 @@ const Servicios = () => {
                             <span>{formatCurrency(subtotal)}</span>
                         </div>
                         <div className="totals-row">
-                            <span>IVA (19%)</span>
+                            <span>IGV (18%)</span>
                             <span>{formatCurrency(iva)}</span>
                         </div>
                         <div className="totals-final">
@@ -389,14 +389,7 @@ const Servicios = () => {
                 </div>
             </div>
 
-            <footer className="page-footer" style={{position: 'relative', marginTop: '40px'}}>
-                <div className="footer-left">© 2023 ECONEXUS SOFTWARE DE GESTIÓN AMBIENTAL</div>
-                <div className="footer-right">
-                    <span>POLÍTICA DE PRIVACIDAD</span>
-                    <span>TÉRMINOS DE OPERACIÓN</span>
-                    <span>LOGS DEL SISTEMA</span>
-                </div>
-            </footer>
+
         </div>
     );
 };
