@@ -1,11 +1,13 @@
 spring:
   application:
     name: nexus-eco-api
+
   datasource:
     url: jdbc:sqlserver://localhost:1433;databaseName=NexusEcoDB;encrypt=true;trustServerCertificate=true;
     username: nexus_user
     password: nexus123
     driver-class-name: com.microsoft.sqlserver.jdbc.SQLServerDriver
+
   jpa:
     hibernate:
       ddl-auto: update
@@ -13,11 +15,14 @@ spring:
     properties:
       hibernate.dialect: org.hibernate.dialect.SQLServerDialect
       hibernate.format_sql: true
+
   mongodb:
     uri: mongodb://localhost:27017/nexus_eco_surveys
+
   servlet:
     multipart:
       max-file-size: 15MB
       max-request-size: 15MB
+
 server:
   port: 8080
