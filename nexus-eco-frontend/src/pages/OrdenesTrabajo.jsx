@@ -13,6 +13,11 @@ const OrdenesTrabajo = () => {
     const [loading, setLoading] = useState(false);
     const [editingId, setEditingId] = useState(null);
 
+    // Filters state
+    const [searchQuery, setSearchQuery] = useState('');
+    const [priorityFilter, setPriorityFilter] = useState('ALL');
+    const [statusFilter, setStatusFilter] = useState('ALL');
+
     const [form, setForm] = useState({
         idOrdenServicio: '',
         descripcionOt: '',
@@ -123,10 +128,26 @@ const OrdenesTrabajo = () => {
     };
 
     if (view === 'list') {
+        const filteredOTs = ordenesTrabajo.filter(ot => {
+            const matchesSearch = (ot.descripcionOt || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+                                  formatOT(ot.idOrdenTrabajo).toLowerCase().includes(searchQuery.toLowerCase()) ||
+                                  (ot.ordenServicio ? formatOS(ot.ordenServicio.idOrdenServicio).toLowerCase().includes(searchQuery.toLowerCase()) : false);
+            const matchesPriority = priorityFilter === 'ALL' || ot.prioridad === priorityFilter;
+            const matchesStatus = statusFilter === 'ALL' || ot.estadoOt === statusFilter;
+            
+            return matchesSearch && matchesPriority && matchesStatus;
+        });
+
+        const handleClearFilters = () => {
+            setSearchQuery('');
+            setPriorityFilter('ALL');
+            setStatusFilter('ALL');
+        };
+
         return (
             <div className="ot-page">
                 <div className="breadcrumb">OPERATIVO / ÓRDENES DE TRABAJO</div>
-
+                
                 <div className="page-header">
                     <div>
                         <h1 className="page-title">Órdenes de Trabajo (OT)</h1>
@@ -137,6 +158,52 @@ const OrdenesTrabajo = () => {
                             <MdAdd size={18} style={{ verticalAlign: 'middle', marginRight: '5px' }}/> Nueva OT
                         </button>
                     </div>
+                </div>
+
+                <div className="filters-bar">
+                    <div className="filter-group search">
+                        <span className="filter-label">Buscar Orden de Trabajo</span>
+                        <input 
+                            type="text" 
+                            className="filter-input" 
+                            placeholder="Buscar por descripción, OT o OS..." 
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                        />
+                    </div>
+                    <div className="filter-group">
+                        <span className="filter-label">Prioridad</span>
+                        <select 
+                            className="filter-select" 
+                            value={priorityFilter}
+                            onChange={(e) => setPriorityFilter(e.target.value)}
+                        >
+                            <option value="ALL">Todas las prioridades</option>
+                            <option value="BAJA">BAJA</option>
+                            <option value="MEDIA">MEDIA</option>
+                            <option value="ALTA">ALTA</option>
+                        </select>
+                    </div>
+                    <div className="filter-group">
+                        <span className="filter-label">Estado</span>
+                        <select 
+                            className="filter-select" 
+                            value={statusFilter}
+                            onChange={(e) => setStatusFilter(e.target.value)}
+                        >
+                            <option value="ALL">Todos los estados</option>
+                            <option value="PENDIENTE">PENDIENTE</option>
+                            <option value="EN_PROCESO">EN PROCESO</option>
+                            <option value="COMPLETADO">COMPLETADO</option>
+                        </select>
+                    </div>
+                    {(searchQuery || priorityFilter !== 'ALL' || statusFilter !== 'ALL') && (
+                        <div className="filter-group action">
+                            <button className="btn-filter-clear" onClick={handleClearFilters}>
+                                Limpiar Filtros
+                            </button>
+                        </div>
+                    )}
                 </div>
 
                 <div className="table-container">
@@ -154,10 +221,10 @@ const OrdenesTrabajo = () => {
                         <tbody>
                             {loading ? (
                                 <tr><td colSpan="6" style={{ textAlign: 'center' }}>Cargando...</td></tr>
-                            ) : ordenesTrabajo.length === 0 ? (
-                                <tr><td colSpan="6" style={{ textAlign: 'center' }}>No hay órdenes de trabajo registradas.</td></tr>
+                            ) : filteredOTs.length === 0 ? (
+                                <tr><td colSpan="6" style={{ textAlign: 'center' }}>No se encontraron órdenes de trabajo con los filtros aplicados.</td></tr>
                             ) : (
-                                ordenesTrabajo.map(ot => (
+                                filteredOTs.map(ot => (
                                     <tr key={ot.idOrdenTrabajo}>
                                         <td style={{ fontWeight: '600' }}>{formatOT(ot.idOrdenTrabajo)}</td>
                                         <td>{ot.ordenServicio ? formatOS(ot.ordenServicio.idOrdenServicio) : '-'}</td>

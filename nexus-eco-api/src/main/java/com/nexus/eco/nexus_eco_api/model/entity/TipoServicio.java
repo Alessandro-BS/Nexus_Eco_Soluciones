@@ -11,9 +11,15 @@ public class TipoServicio {
     @Column(name = "id_tipo_servicio")
     private Integer idTipoServicio;
     @Column(name = "nombre_servicio", nullable = false)
+    @jakarta.validation.constraints.NotBlank(message = "El nombre del servicio es obligatorio")
+    @jakarta.validation.constraints.Size(max = 100, message = "El nombre no puede exceder 100 caracteres")
     private String nombreServicio;
+    
     @Column(name = "descripcion_ts")
     private String descripcionTs;
+    
     @Column(name = "precio_base")
+    @jakarta.validation.constraints.NotNull(message = "El precio base es obligatorio")
+    @jakarta.validation.constraints.DecimalMin(value = "0.0", inclusive = false, message = "El precio debe ser mayor a 0")
     private BigDecimal precioBase;
 }

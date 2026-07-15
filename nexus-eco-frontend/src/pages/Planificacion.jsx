@@ -18,6 +18,11 @@ const Planificacion = () => {
     const [loading, setLoading] = useState(false);
     const [editingId, setEditingId] = useState(null);
 
+    // Filters state
+    const [searchQuery, setSearchQuery] = useState('');
+    const [statusFilter, setStatusFilter] = useState('ALL');
+    const [dateFilter, setDateFilter] = useState('');
+
     // Details Modal State
     const [showDetailsModal, setShowDetailsModal] = useState(false);
     const [selectedPlan, setSelectedPlan] = useState(null);
@@ -260,6 +265,29 @@ const Planificacion = () => {
         }
     };
 
+    const filteredPlanificaciones = planificaciones.filter(p => {
+        const clientName = (p.ordenServicio?.solicitudServicio?.cliente?.razonSocial || '').toLowerCase();
+        const locationDist = (p.ubicacion?.distrito || '').toLowerCase();
+        const locationCalle = (p.ubicacion?.calle || '').toLowerCase();
+        const planId = formatPlan(p.idPlanificacionServicio).toLowerCase();
+        
+        const matchesSearch = clientName.includes(searchQuery.toLowerCase()) ||
+                              locationDist.includes(searchQuery.toLowerCase()) ||
+                              locationCalle.includes(searchQuery.toLowerCase()) ||
+                              planId.includes(searchQuery.toLowerCase());
+                              
+        const matchesStatus = statusFilter === 'ALL' || p.estadoPlan === statusFilter;
+        const matchesDate = !dateFilter || (p.fechaProgramada && p.fechaProgramada.split('T')[0] === dateFilter);
+        
+        return matchesSearch && matchesStatus && matchesDate;
+    });
+
+    const handleClearFilters = () => {
+        setSearchQuery('');
+        setStatusFilter('ALL');
+        setDateFilter('');
+    };
+
     return (
         <div className="planificacion-page">
             <div className="breadcrumb">OPERATIVO / PLANIFICACIÓN</div>
@@ -277,57 +305,101 @@ const Planificacion = () => {
             </div>
 
             {view === 'list' ? (
-                <div className="table-container">
-                    <table className="planificaciones-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
-                        <thead>
-                            <tr>
-                                <th>ID Plan</th>
-                                <th>Orden Servicio</th>
-                                <th>Fecha Programada</th>
-                                <th>Hora Inicio</th>
-                                <th>Ubicación</th>
-                                <th>Estado</th>
-                                <th>Acciones</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {loading ? (
-                                <tr><td colSpan="7" style={{ textAlign: 'center' }}>Cargando...</td></tr>
-                            ) : planificaciones.length === 0 ? (
-                                <tr><td colSpan="7" style={{ textAlign: 'center' }}>No hay planificaciones programadas.</td></tr>
-                            ) : (
-                                planificaciones.map(p => {
-                                    const canEditDelete = p.estadoPlan === 'PROGRAMADO';
-                                    return (
-                                        <tr key={p.idPlanificacionServicio}>
-                                            <td style={{ fontWeight: '600' }}>{formatPlan(p.idPlanificacionServicio)}</td>
-                                            <td>{p.ordenServicio ? formatOS(p.ordenServicio.idOrdenServicio) : '-'}</td>
-                                            <td>{p.fechaProgramada ? p.fechaProgramada.split('T')[0] : '-'}</td>
-                                            <td>{p.horaInicio || '-'}</td>
-                                            <td>{p.ubicacion ? `${p.ubicacion.calle}, ${p.ubicacion.distrito}` : '-'}</td>
-                                            <td>
-                                                <span className={`status-badge status-${p.estadoPlan?.toLowerCase()}`}>
-                                                    {p.estadoPlan}
-                                                </span>
-                                            </td>
-                                            <td>
-                                                <button className="btn-table-details" onClick={() => handleOpenDetails(p)} style={{ marginRight: '8px' }}>
-                                                    <MdVisibility size={14} style={{ marginRight: '4px' }} /> Ver
-                                                </button>
-                                                {canEditDelete && (
-                                                    <>
-                                                        <button className="btn-table-edit" onClick={() => handleEdit(p)} style={{ marginRight: '8px', background: '#eff6ff', color: '#2563eb', border: '1px solid #bfdbfe', padding: '6px 12px', borderRadius: '4px', cursor: 'pointer', fontSize: '12px' }}>Editar</button>
-                                                        <button className="btn-table-delete" onClick={() => handleDelete(p.idPlanificacionServicio)} style={{ background: '#fef2f2', color: '#dc2626', border: '1px solid #fecaca', padding: '6px 12px', borderRadius: '4px', cursor: 'pointer', fontSize: '12px' }}>Eliminar</button>
-                                                    </>
-                                                )}
-                                            </td>
-                                        </tr>
-                                    );
-                                })
-                            )}
-                        </tbody>
-                    </table>
-                </div>
+                <>
+                    <div className="filters-bar">
+                        <div className="filter-group search">
+                            <span className="filter-label">Buscar Planificación</span>
+                            <input 
+                                type="text" 
+                                className="filter-input" 
+                                placeholder="Buscar por cliente, distrito o calle..." 
+                                value={searchQuery}
+                                onChange={(e) => setSearchQuery(e.target.value)}
+                            />
+                        </div>
+                        <div className="filter-group">
+                            <span className="filter-label">Estado</span>
+                            <select 
+                                className="filter-select" 
+                                value={statusFilter}
+                                onChange={(e) => setStatusFilter(e.target.value)}
+                            >
+                                <option value="ALL">Todos los estados</option>
+                                <option value="PROGRAMADO">PROGRAMADO</option>
+                                <option value="EJECUTADO">EJECUTADO</option>
+                                <option value="CANCELADO">CANCELADO</option>
+                            </select>
+                        </div>
+                        <div className="filter-group">
+                            <span className="filter-label">Fecha Programada</span>
+                            <input 
+                                type="date" 
+                                className="filter-input" 
+                                value={dateFilter}
+                                onChange={(e) => setDateFilter(e.target.value)}
+                            />
+                        </div>
+                        {(searchQuery || statusFilter !== 'ALL' || dateFilter) && (
+                            <div className="filter-group action">
+                                <button className="btn-filter-clear" onClick={handleClearFilters}>
+                                    Limpiar
+                                </button>
+                            </div>
+                        )}
+                    </div>
+
+                    <div className="table-container">
+                        <table className="planificaciones-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
+                            <thead>
+                                <tr>
+                                    <th>ID Plan</th>
+                                    <th>Orden Servicio</th>
+                                    <th>Fecha Programada</th>
+                                    <th>Hora Inicio</th>
+                                    <th>Ubicación</th>
+                                    <th>Estado</th>
+                                    <th>Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {loading ? (
+                                    <tr><td colSpan="7" style={{ textAlign: 'center' }}>Cargando...</td></tr>
+                                ) : filteredPlanificaciones.length === 0 ? (
+                                    <tr><td colSpan="7" style={{ textAlign: 'center' }}>No se encontraron planificaciones con los filtros aplicados.</td></tr>
+                                ) : (
+                                    filteredPlanificaciones.map(p => {
+                                        const canEditDelete = p.estadoPlan === 'PROGRAMADO';
+                                        return (
+                                            <tr key={p.idPlanificacionServicio}>
+                                                <td style={{ fontWeight: '600' }}>{formatPlan(p.idPlanificacionServicio)}</td>
+                                                <td>{p.ordenServicio ? formatOS(p.ordenServicio.idOrdenServicio) : '-'}</td>
+                                                <td>{p.fechaProgramada ? p.fechaProgramada.split('T')[0] : '-'}</td>
+                                                <td>{p.horaInicio || '-'}</td>
+                                                <td>{p.ubicacion ? `${p.ubicacion.calle}, ${p.ubicacion.distrito}` : '-'}</td>
+                                                <td>
+                                                    <span className={`status-badge status-${p.estadoPlan?.toLowerCase()}`}>
+                                                        {p.estadoPlan}
+                                                    </span>
+                                                </td>
+                                                <td>
+                                                    <button className="btn-table-details" onClick={() => handleOpenDetails(p)} style={{ marginRight: '8px' }}>
+                                                        <MdVisibility size={14} style={{ marginRight: '4px' }} /> Ver
+                                                    </button>
+                                                    {canEditDelete && (
+                                                        <>
+                                                            <button className="btn-table-edit" onClick={() => handleEdit(p)} style={{ marginRight: '8px', background: '#eff6ff', color: '#2563eb', border: '1px solid #bfdbfe', padding: '6px 12px', borderRadius: '4px', cursor: 'pointer', fontSize: '12px' }}>Editar</button>
+                                                            <button className="btn-table-delete" onClick={() => handleDelete(p.idPlanificacionServicio)} style={{ background: '#fef2f2', color: '#dc2626', border: '1px solid #fecaca', padding: '6px 12px', borderRadius: '4px', cursor: 'pointer', fontSize: '12px' }}>Eliminar</button>
+                                                        </>
+                                                    )}
+                                                </td>
+                                            </tr>
+                                        );
+                                    })
+                                )}
+                            </tbody>
+                        </table>
+                    </div>
+                </>
             ) : (
                 <div className="form-container">
                     <div className="header-actions" style={{ marginBottom: '20px', justifyContent: 'flex-end' }}>

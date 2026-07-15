@@ -36,6 +36,10 @@ const Auditoria = () => {
     const [ejecuciones, setEjecuciones] = useState([]);
     const [selectedEjecucion, setSelectedEjecucion] = useState(null);
     const [loading, setLoading] = useState(false);
+
+    // Filters state
+    const [searchQuery, setSearchQuery] = useState('');
+    const [resultFilter, setResultFilter] = useState('ALL');
     
     // Detail Data
     const [auditorias, setAuditorias] = useState([]);
@@ -429,6 +433,21 @@ const Auditoria = () => {
     };
 
     if (view === 'list') {
+        const filteredEjecuciones = ejecuciones.filter(ej => {
+            const clientName = (ej.planificacionServicio?.ordenServicio?.solicitudServicio?.cliente?.razonSocial || '').toLowerCase();
+            const orderIdStr = formatOS(ej.planificacionServicio?.ordenServicio?.idOrdenServicio || ej.idEjecucionServicio).toLowerCase();
+            
+            const matchesSearch = clientName.includes(searchQuery.toLowerCase()) || orderIdStr.includes(searchQuery.toLowerCase());
+            const matchesResult = resultFilter === 'ALL' || ej.resultado === resultFilter;
+            
+            return matchesSearch && matchesResult;
+        });
+
+        const handleClearFilters = () => {
+            setSearchQuery('');
+            setResultFilter('ALL');
+        };
+
         return (
             <div className="auditoria-page">
                 <div className="breadcrumb">GESTIÓN / AUDITORÍAS</div>
@@ -438,6 +457,38 @@ const Auditoria = () => {
                         <h1 className="page-title">Seleccionar Ejecución de Servicio</h1>
                         <p className="page-subtitle">Seleccione una ejecución para auditar o reportar incidentes.</p>
                     </div>
+                </div>
+
+                <div className="filters-bar">
+                    <div className="filter-group search">
+                        <span className="filter-label">Buscar Ejecución</span>
+                        <input 
+                            type="text" 
+                            className="filter-input" 
+                            placeholder="Buscar por cliente u orden..." 
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                        />
+                    </div>
+                    <div className="filter-group">
+                        <span className="filter-label">Resultado de Ejecución</span>
+                        <select 
+                            className="filter-select" 
+                            value={resultFilter}
+                            onChange={(e) => setResultFilter(e.target.value)}
+                        >
+                            <option value="ALL">Todos los Resultados</option>
+                            <option value="Satisfactorio (Pass)">Satisfactorio (Pass)</option>
+                            <option value="No Satisfactorio">No Satisfactorio</option>
+                        </select>
+                    </div>
+                    {(searchQuery || resultFilter !== 'ALL') && (
+                        <div className="filter-group action">
+                            <button className="btn-filter-clear" onClick={handleClearFilters}>
+                                Limpiar Filtros
+                            </button>
+                        </div>
+                    )}
                 </div>
 
                 <div className="table-container">
@@ -454,10 +505,10 @@ const Auditoria = () => {
                         <tbody>
                             {loading ? (
                                 <tr><td colSpan="5" style={{textAlign: 'center', padding: '20px'}}>Cargando...</td></tr>
-                            ) : ejecuciones.length === 0 ? (
-                                <tr><td colSpan="5" style={{textAlign: 'center', padding: '20px'}}>No hay ejecuciones de servicio registradas.</td></tr>
+                            ) : filteredEjecuciones.length === 0 ? (
+                                <tr><td colSpan="5" style={{textAlign: 'center', padding: '20px'}}>No se encontraron ejecuciones con los filtros aplicados.</td></tr>
                             ) : (
-                                ejecuciones.map(ej => (
+                                filteredEjecuciones.map(ej => (
                                     <tr key={ej.idEjecucionServicio} style={{borderBottom: '1px solid #f1f5f9'}}>
                                         <td style={{padding: '16px', fontWeight: 'bold'}}>{formatOS(ej.planificacionServicio?.ordenServicio?.idOrdenServicio || ej.idEjecucionServicio)}</td>
                                         <td style={{padding: '16px'}}>{new Date(ej.fechaEjecucion).toLocaleDateString()}</td>

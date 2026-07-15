@@ -29,12 +29,12 @@ public class TipoServicioController {
     }
 
     @PostMapping
-    public TipoServicio create(@RequestBody TipoServicio entity) {
+    public TipoServicio create(@jakarta.validation.Valid @RequestBody TipoServicio entity) {
         return service.save(entity);
     }
 
     @PutMapping("/{id}")
-    public ResponseEntity<TipoServicio> update(@PathVariable Integer id, @RequestBody TipoServicio entity) {
+    public ResponseEntity<TipoServicio> update(@PathVariable Integer id, @jakarta.validation.Valid @RequestBody TipoServicio entity) {
         return service.findById(id).map(existing -> {
             // TODO: Añadir mapeo de campos específicos si es necesario
             entity.setIdTipoServicio(id);

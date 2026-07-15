@@ -17,6 +17,12 @@ const Servicios = () => {
     const [view, setView] = useState('list'); // 'list' or 'form'
     const [ordenes, setOrdenes] = useState([]);
     
+    // Filters state
+    const [searchQuery, setSearchQuery] = useState('');
+    const [statusFilter, setStatusFilter] = useState('ALL');
+    const [minAmount, setMinAmount] = useState('');
+    const [maxAmount, setMaxAmount] = useState('');
+    
     // Dropdown Data
     const [clientes, setClientes] = useState([]);
     const [empleados, setEmpleados] = useState([]);
@@ -216,6 +222,26 @@ const Servicios = () => {
     };
 
     if (view === 'list') {
+        const filteredOrdenes = ordenes.filter(ord => {
+            const clientName = (ord.solicitudServicio?.cliente?.razonSocial || '').toLowerCase();
+            const matchesSearch = clientName.includes(searchQuery.toLowerCase()) || 
+                                  String(ord.idOrdenServicio).includes(searchQuery);
+            const matchesStatus = statusFilter === 'ALL' || ord.estadoOrden === statusFilter;
+            
+            const total = ord.montoTotal || 0;
+            const matchesMin = minAmount === '' || total >= parseFloat(minAmount);
+            const matchesMax = maxAmount === '' || total <= parseFloat(maxAmount);
+            
+            return matchesSearch && matchesStatus && matchesMin && matchesMax;
+        });
+
+        const handleClearFilters = () => {
+            setSearchQuery('');
+            setStatusFilter('ALL');
+            setMinAmount('');
+            setMaxAmount('');
+        };
+
         return (
             <div className="servicios-page">
                 <div className="breadcrumb">GESTIÓN / SERVICIOS</div>
@@ -230,6 +256,59 @@ const Servicios = () => {
                             <MdAddIcon size={18} /> Nueva Solicitud
                         </button>
                     </div>
+                </div>
+
+                <div className="filters-bar">
+                    <div className="filter-group search">
+                        <span className="filter-label">Buscar Orden</span>
+                        <input 
+                            type="text" 
+                            className="filter-input" 
+                            placeholder="Buscar por cliente o ID de orden..." 
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                        />
+                    </div>
+                    <div className="filter-group">
+                        <span className="filter-label">Estado</span>
+                        <select 
+                            className="filter-select" 
+                            value={statusFilter}
+                            onChange={(e) => setStatusFilter(e.target.value)}
+                        >
+                            <option value="ALL">Todos los estados</option>
+                            <option value="PENDIENTE">PENDIENTE</option>
+                            <option value="EN_PROCESO">EN PROCESO</option>
+                            <option value="COMPLETADO">COMPLETADO</option>
+                        </select>
+                    </div>
+                    <div className="filter-group" style={{ flex: 1, minWidth: '120px' }}>
+                        <span className="filter-label">Monto Mín</span>
+                        <input 
+                            type="number" 
+                            className="filter-input" 
+                            placeholder="S/. Min" 
+                            value={minAmount}
+                            onChange={(e) => setMinAmount(e.target.value)}
+                        />
+                    </div>
+                    <div className="filter-group" style={{ flex: 1, minWidth: '120px' }}>
+                        <span className="filter-label">Monto Máx</span>
+                        <input 
+                            type="number" 
+                            className="filter-input" 
+                            placeholder="S/. Max" 
+                            value={maxAmount}
+                            onChange={(e) => setMaxAmount(e.target.value)}
+                        />
+                    </div>
+                    {(searchQuery || statusFilter !== 'ALL' || minAmount || maxAmount) && (
+                        <div className="filter-group action">
+                            <button className="btn-filter-clear" onClick={handleClearFilters}>
+                                Limpiar
+                            </button>
+                        </div>
+                    )}
                 </div>
 
                 <div className="table-container">
@@ -247,10 +326,10 @@ const Servicios = () => {
                         <tbody>
                             {loading ? (
                                 <tr><td colSpan="6" style={{ textAlign: 'center' }}>Cargando...</td></tr>
-                            ) : ordenes.length === 0 ? (
-                                <tr><td colSpan="6" style={{ textAlign: 'center' }}>No hay órdenes registradas.</td></tr>
+                            ) : filteredOrdenes.length === 0 ? (
+                                <tr><td colSpan="6" style={{ textAlign: 'center' }}>No se encontraron órdenes con los filtros aplicados.</td></tr>
                             ) : (
-                                ordenes.map(ord => {
+                                filteredOrdenes.map(ord => {
                                     const canEditDelete = ord.estadoOrden === 'PENDIENTE' || ord.estadoOrden === 'EN_PROCESO';
                                     return (
                                         <tr key={ord.idOrdenServicio}>

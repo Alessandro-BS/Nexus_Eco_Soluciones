@@ -13,6 +13,11 @@ const Informes = () => {
     const [loading, setLoading] = useState(false);
     const [editingId, setEditingId] = useState(null);
 
+    // Filters state
+    const [searchQuery, setSearchQuery] = useState('');
+    const [typeFilter, setTypeFilter] = useState('ALL');
+    const [statusFilter, setStatusFilter] = useState('ALL');
+
     const [form, setForm] = useState({
         idEjecucionServicio: '',
         tipoInforme: 'Mensual',
@@ -414,54 +419,119 @@ const Informes = () => {
             </div>
 
             {view === 'list' ? (
-                <div className="table-container" style={{ background: 'white', border: '1px solid #e2e8f0', borderRadius: '4px', overflowX: 'auto' }}>
-                    <table className="informes-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '14px' }}>
-                        <thead>
-                            <tr style={{ background: '#f8fafc', borderBottom: '1px solid #e2e8f0', textAlign: 'left' }}>
-                                <th style={{ padding: '12px 16px', fontWeight: '600', color: '#475569' }}>Código Informe</th>
-                                <th style={{ padding: '12px 16px', fontWeight: '600', color: '#475569' }}>Cliente / Empresa</th>
-                                <th style={{ padding: '12px 16px', fontWeight: '600', color: '#475569' }}>Nro. Orden</th>
-                                <th style={{ padding: '12px 16px', fontWeight: '600', color: '#475569' }}>Servicios Aplicados</th>
-                                <th style={{ padding: '12px 16px', fontWeight: '600', color: '#475569' }}>Fecha Generación</th>
-                                <th style={{ padding: '12px 16px', fontWeight: '600', color: '#475569' }}>Estado Envío</th>
-                                <th style={{ padding: '12px 16px', fontWeight: '600', color: '#475569' }}>Acciones</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {loading ? (
-                                <tr><td colSpan="7" style={{ textAlign: 'center', padding: '20px' }}>Cargando...</td></tr>
-                            ) : informes.length === 0 ? (
-                                <tr><td colSpan="7" style={{ textAlign: 'center', padding: '20px' }}>No hay informes registrados.</td></tr>
-                            ) : (
-                                informes.map(inf => {
-                                    const clientName = inf.ejecucionServicio?.planificacionServicio?.ordenServicio?.solicitudServicio?.cliente?.razonSocial || 'Cliente';
-                                    const orderId = inf.ejecucionServicio?.planificacionServicio?.ordenServicio?.idOrdenServicio;
-                                    const servicesList = inf.ejecucionServicio?.planificacionServicio?.ordenServicio?.detalles?.map(d => d.tipoServicio?.nombreServicio).filter(Boolean).join(', ') || 'Servicio';
-                                    
-                                    return (
-                                        <tr key={inf.idInformeServicio} style={{ borderBottom: '1px solid #f1f5f9' }}>
-                                            <td style={{ padding: '12px 16px', fontWeight: '600' }}>{formatInforme(inf.idInformeServicio)}</td>
-                                            <td style={{ padding: '12px 16px' }}>{clientName}</td>
-                                            <td style={{ padding: '12px 16px' }}>{orderId ? formatOS(orderId) : '-'}</td>
-                                            <td style={{ padding: '12px 16px', maxWidth: '250px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={servicesList}>{servicesList}</td>
-                                            <td style={{ padding: '12px 16px' }}>{inf.fechaGeneracion ? inf.fechaGeneracion.split('T')[0] : '-'}</td>
-                                            <td style={{ padding: '12px 16px' }}>
-                                                <span className={`status-badge status-${inf.estadoEnvio?.toLowerCase()}`} style={{ padding: '4px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: '700', display: 'inline-block', textAlign: 'center', width: '90px' }}>
-                                                    {inf.estadoEnvio}
-                                                </span>
-                                            </td>
-                                            <td style={{ padding: '12px 16px', display: 'flex', gap: '8px' }}>
-                                                <button className="btn-table-edit" onClick={() => handleEdit(inf)} style={{ padding: '6px 12px', background: '#eff6ff', color: '#2563eb', border: '1px solid #bfdbfe', borderRadius: '4px', cursor: 'pointer', fontSize: '12px', fontWeight: '600' }}>Editar</button>
-                                                <button className="btn-table-pdf" onClick={() => handleGenerarPDF(inf)} style={{ padding: '6px 12px', background: '#ecfdf5', color: '#059669', border: '1px solid #a7f3d0', borderRadius: '4px', cursor: 'pointer', fontSize: '12px', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '3px' }}><MdOutlinePictureAsPdf size={14} /> PDF</button>
-                                                <button className="btn-table-delete" onClick={() => handleDelete(inf.idInformeServicio)} style={{ padding: '6px 12px', background: '#fef2f2', color: '#dc2626', border: '1px solid #fecaca', borderRadius: '4px', cursor: 'pointer', fontSize: '12px', fontWeight: '600' }}>Eliminar</button>
-                                            </td>
-                                        </tr>
-                                    );
-                                })
-                            )}
-                        </tbody>
-                    </table>
-                </div>
+                <>
+                    <div className="filters-bar">
+                        <div className="filter-group search">
+                            <span className="filter-label">Buscar Informe</span>
+                            <input 
+                                type="text" 
+                                className="filter-input" 
+                                placeholder="Buscar por cliente o código de informe..." 
+                                value={searchQuery}
+                                onChange={(e) => setSearchQuery(e.target.value)}
+                            />
+                        </div>
+                        <div className="filter-group">
+                            <span className="filter-label">Tipo de Informe</span>
+                            <select 
+                                className="filter-select" 
+                                value={typeFilter}
+                                onChange={(e) => setTypeFilter(e.target.value)}
+                            >
+                                <option value="ALL">Todos los tipos</option>
+                                <option value="Mensual">Mensual</option>
+                                <option value="Semanal">Semanal</option>
+                                <option value="Cierre">Cierre</option>
+                                <option value="Especial">Especial</option>
+                                <option value="FINAL_AUDITADO">Final Auditado</option>
+                            </select>
+                        </div>
+                        <div className="filter-group">
+                            <span className="filter-label">Estado Envío</span>
+                            <select 
+                                className="filter-select" 
+                                value={statusFilter}
+                                onChange={(e) => setStatusFilter(e.target.value)}
+                            >
+                                <option value="ALL">Todos los estados</option>
+                                <option value="PENDIENTE">PENDIENTE</option>
+                                <option value="ENVIADO">ENVIADO</option>
+                                <option value="RECIBIDO">RECIBIDO</option>
+                            </select>
+                        </div>
+                        {(searchQuery || typeFilter !== 'ALL' || statusFilter !== 'ALL') && (
+                            <div className="filter-group action">
+                                <button className="btn-filter-clear" onClick={handleClearFilters}>
+                                    Limpiar
+                                </button>
+                            </div>
+                        )}
+                    </div>
+
+                    <div className="table-container" style={{ background: 'white', border: '1px solid #e2e8f0', borderRadius: '4px', overflowX: 'auto' }}>
+                        <table className="informes-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '14px' }}>
+                            <thead>
+                                <tr style={{ background: '#f8fafc', borderBottom: '1px solid #e2e8f0', textAlign: 'left' }}>
+                                    <th style={{ padding: '12px 16px', fontWeight: '600', color: '#475569' }}>Código Informe</th>
+                                    <th style={{ padding: '12px 16px', fontWeight: '600', color: '#475569' }}>Cliente / Empresa</th>
+                                    <th style={{ padding: '12px 16px', fontWeight: '600', color: '#475569' }}>Nro. Orden</th>
+                                    <th style={{ padding: '12px 16px', fontWeight: '600', color: '#475569' }}>Servicios Aplicados</th>
+                                    <th style={{ padding: '12px 16px', fontWeight: '600', color: '#475569' }}>Fecha Generación</th>
+                                    <th style={{ padding: '12px 16px', fontWeight: '600', color: '#475569' }}>Estado Envío</th>
+                                    <th style={{ padding: '12px 16px', fontWeight: '600', color: '#475569' }}>Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {loading ? (
+                                    <tr><td colSpan="7" style={{ textAlign: 'center', padding: '20px' }}>Cargando...</td></tr>
+                                ) : (
+                                    (() => {
+                                        const filteredInformes = informes.filter(inf => {
+                                            const clientName = (inf.ejecucionServicio?.planificacionServicio?.ordenServicio?.solicitudServicio?.cliente?.razonSocial || '').toLowerCase();
+                                            const reportIdStr = formatInforme(inf.idInformeServicio).toLowerCase();
+                                            
+                                            const matchesSearch = clientName.includes(searchQuery.toLowerCase()) || reportIdStr.includes(searchQuery.toLowerCase());
+                                            const matchesType = typeFilter === 'ALL' || inf.tipoInforme === typeFilter;
+                                            const matchesStatus = statusFilter === 'ALL' || inf.estadoEnvio === statusFilter;
+                                            
+                                            return matchesSearch && matchesType && matchesStatus;
+                                        });
+
+                                        if (filteredInformes.length === 0) {
+                                            return <tr><td colSpan="7" style={{ textAlign: 'center', padding: '20px' }}>No se encontraron informes con los filtros aplicados.</td></tr>;
+                                        }
+
+                                        return filteredInformes.map(inf => {
+                                            const clientName = inf.ejecucionServicio?.planificacionServicio?.ordenServicio?.solicitudServicio?.cliente?.razonSocial || 'Cliente';
+                                            const orderId = inf.ejecucionServicio?.planificacionServicio?.ordenServicio?.idOrdenServicio;
+                                            const servicesList = inf.ejecucionServicio?.planificacionServicio?.ordenServicio?.detalles?.map(d => d.tipoServicio?.nombreServicio).filter(Boolean).join(', ') || 'Servicio';
+                                            
+                                            return (
+                                                <tr key={inf.idInformeServicio} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                                                    <td style={{ padding: '12px 16px', fontWeight: '600' }}>{formatInforme(inf.idInformeServicio)}</td>
+                                                    <td style={{ padding: '12px 16px' }}>{clientName}</td>
+                                                    <td style={{ padding: '12px 16px' }}>{orderId ? formatOS(orderId) : '-'}</td>
+                                                    <td style={{ padding: '12px 16px', maxWidth: '250px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={servicesList}>{servicesList}</td>
+                                                    <td style={{ padding: '12px 16px' }}>{inf.fechaGeneracion ? inf.fechaGeneracion.split('T')[0] : '-'}</td>
+                                                    <td style={{ padding: '12px 16px' }}>
+                                                        <span className={`status-badge status-${inf.estadoEnvio?.toLowerCase()}`} style={{ padding: '4px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: '700', display: 'inline-block', textAlign: 'center', width: '90px' }}>
+                                                            {inf.estadoEnvio}
+                                                        </span>
+                                                    </td>
+                                                    <td style={{ padding: '12px 16px', display: 'flex', gap: '8px' }}>
+                                                        <button className="btn-table-edit" onClick={() => handleEdit(inf)} style={{ padding: '6px 12px', background: '#eff6ff', color: '#2563eb', border: '1px solid #bfdbfe', borderRadius: '4px', cursor: 'pointer', fontSize: '12px', fontWeight: '600' }}>Editar</button>
+                                                        <button className="btn-table-pdf" onClick={() => handleGenerarPDF(inf)} style={{ padding: '6px 12px', background: '#ecfdf5', color: '#059669', border: '1px solid #a7f3d0', borderRadius: '4px', cursor: 'pointer', fontSize: '12px', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '3px' }}><MdOutlinePictureAsPdf size={14} /> PDF</button>
+                                                        <button className="btn-table-delete" onClick={() => handleDelete(inf.idInformeServicio)} style={{ padding: '6px 12px', background: '#fef2f2', color: '#dc2626', border: '1px solid #fecaca', borderRadius: '4px', cursor: 'pointer', fontSize: '12px', fontWeight: '600' }}>Eliminar</button>
+                                                    </td>
+                                                </tr>
+                                            );
+                                        });
+                                    })()
+                                )}
+                            </tbody>
+                        </table>
+                    </div>
+                </>
             ) : (
                 <div className="form-container">
                     <div className="header-actions" style={{ marginBottom: '20px', display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
