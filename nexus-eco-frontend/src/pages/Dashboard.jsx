@@ -8,11 +8,16 @@ import {
 import { getOrdenes, getEjecuciones, getAuditorias, getIncidentes } from '../api/api';
 import './Dashboard.css';
 
-const COLORS = ['#34a853', '#80e27e', '#fbbc05', '#ea4335', '#4285f4'];
+// Premium color palette
+const COLORS = ['#6366f1', '#ec4899', '#14b8a6', '#f59e0b', '#8b5cf6'];
 
 const Dashboard = () => {
     const [loading, setLoading] = useState(true);
+    const [timeFilter, setTimeFilter] = useState('month'); // 'day', 'month', 'year'
     
+    // Raw Data
+    const [rawData, setRawData] = useState({ ordenes: [], ejecuciones: [], auditorias: [], incidentes: [] });
+
     // KPIs
     const [totalOrdenes, setTotalOrdenes] = useState(0);
     const [totalEjecuciones, setTotalEjecuciones] = useState(0);
@@ -20,7 +25,7 @@ const Dashboard = () => {
     const [totalIncidentes, setTotalIncidentes] = useState(0);
 
     // Chart Data
-    const [ordenesPorMes, setOrdenesPorMes] = useState([]);
+    const [ordenesFiltradas, setOrdenesFiltradas] = useState([]);
     const [estadoOrdenes, setEstadoOrdenes] = useState([]);
     const [incidentesGravedad, setIncidentesGravedad] = useState([]);
     const [rendimientoAuditores, setRendimientoAuditores] = useState([]);
@@ -28,6 +33,12 @@ const Dashboard = () => {
     useEffect(() => {
         fetchData();
     }, []);
+
+    useEffect(() => {
+        if (rawData.ordenes.length > 0) {
+            processTimeData(rawData.ordenes, timeFilter);
+        }
+    }, [timeFilter, rawData]);
 
     const fetchData = async () => {
         try {
@@ -44,6 +55,8 @@ const Dashboard = () => {
             const auditorias = auditoriasRes.data;
             const incidentes = incidentesRes.data;
 
+            setRawData({ ordenes, ejecuciones, auditorias, incidentes });
+
             // 1. KPIs
             setTotalOrdenes(ordenes.length);
             setTotalEjecuciones(ejecuciones.length);
@@ -54,25 +67,13 @@ const Dashboard = () => {
                 setPromedioAuditorias((sum / auditorias.length).toFixed(1));
             }
 
-            // 2. Órdenes por mes (Area Chart)
-            const mesesMap = {};
-            ordenes.forEach(ord => {
-                if (ord.fechaOrden) {
-                    const date = new Date(ord.fechaOrden);
-                    const mesKey = date.toLocaleString('es-ES', { month: 'short', year: 'numeric' });
-                    mesesMap[mesKey] = (mesesMap[mesKey] || 0) + 1;
-                }
-            });
-            const ordenesData = Object.keys(mesesMap).map(k => ({ mes: k, cantidad: mesesMap[k] }));
-            setOrdenesPorMes(ordenesData);
-
             // 3. Estado Órdenes (Donut Chart)
             const estadoMap = {};
             ordenes.forEach(ord => {
                 const estado = ord.estadoOrden || 'DESCONOCIDO';
                 estadoMap[estado] = (estadoMap[estado] || 0) + 1;
             });
-            const estadoData = Object.keys(estadoMap).map(k => ({ name: k, value: estadoMap[k] }));
+            const estadoData = Object.keys(estadoMap).map(k => ({ name: k.replace(/_/g, ' '), value: estadoMap[k] }));
             setEstadoOrdenes(estadoData);
 
             // 4. Incidentes por gravedad (Bar Chart)
@@ -110,121 +111,201 @@ const Dashboard = () => {
         }
     };
 
+    const processTimeData = (ordenes, filter) => {
+        const dataMap = {};
+        ordenes.forEach(ord => {
+            if (ord.fechaOrden) {
+                const date = new Date(ord.fechaOrden);
+                let key = '';
+                if (filter === 'day') {
+                    key = date.toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' });
+                } else if (filter === 'month') {
+                    key = date.toLocaleDateString('es-ES', { month: 'long', year: 'numeric' });
+                } else if (filter === 'year') {
+                    key = date.toLocaleDateString('es-ES', { year: 'numeric' });
+                }
+                
+                // Capitalize first letter
+                key = key.charAt(0).toUpperCase() + key.slice(1);
+                dataMap[key] = (dataMap[key] || 0) + 1;
+            }
+        });
+        
+        const chartData = Object.keys(dataMap).map(k => ({ periodo: k, cantidad: dataMap[k] }));
+        setOrdenesFiltradas(chartData);
+    };
+
     if (loading) {
-        return <div style={{padding: '40px', textAlign: 'center'}}>Cargando estadísticas...</div>;
+        return (
+            <div className="dashboard-loading">
+                <div className="loader"></div>
+                <p>Cargando métricas...</p>
+            </div>
+        );
     }
 
     return (
         <div className="dashboard-container">
+            <div className="dashboard-header">
+                <h1 className="dashboard-title">Resumen de Operaciones</h1>
+                <p className="dashboard-subtitle">Métricas y rendimiento general del sistema</p>
+            </div>
+
             {/* KPIs */}
             <div className="kpi-grid">
-                <div className="kpi-card">
-                    <div className="kpi-value">{totalOrdenes}</div>
-                    <div className="kpi-label">ÓRDENES DE SERVICIO TOTALES</div>
+                <div className="kpi-card premium-card">
+                    <div className="kpi-icon-wrapper blue-bg">
+                        <svg width="28" height="28" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
+                    </div>
+                    <div className="kpi-content">
+                        <div className="kpi-label">ÓRDENES TOTALES</div>
+                        <div className="kpi-value">{totalOrdenes}</div>
+                    </div>
                 </div>
-                <div className="kpi-card">
-                    <div className="kpi-value">{totalEjecuciones}</div>
-                    <div className="kpi-label">SERVICIOS EJECUTADOS</div>
+                <div className="kpi-card premium-card">
+                    <div className="kpi-icon-wrapper green-bg">
+                        <svg width="28" height="28" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"></path></svg>
+                    </div>
+                    <div className="kpi-content">
+                        <div className="kpi-label">SERVICIOS EJECUTADOS</div>
+                        <div className="kpi-value">{totalEjecuciones}</div>
+                    </div>
                 </div>
-                <div className="kpi-card">
-                    <div className="kpi-value">{promedioAuditorias} <span style={{fontSize: '16px'}}>⭐</span></div>
-                    <div className="kpi-label">CALIFICACIÓN PROMEDIO</div>
+                <div className="kpi-card premium-card">
+                    <div className="kpi-icon-wrapper yellow-bg">
+                        <svg width="28" height="28" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>
+                    </div>
+                    <div className="kpi-content">
+                        <div className="kpi-label">SATISFACCIÓN (ENCUESTAS)</div>
+                        <div className="kpi-value">{promedioAuditorias} <span>⭐</span></div>
+                    </div>
                 </div>
-                <div className="kpi-card">
-                    <div className="kpi-value" style={{color: totalIncidentes > 0 ? '#ea4335' : '#34a853'}}>{totalIncidentes}</div>
-                    <div className="kpi-label">INCIDENTES REPORTADOS</div>
+                <div className="kpi-card premium-card">
+                    <div className="kpi-icon-wrapper red-bg">
+                        <svg width="28" height="28" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
+                    </div>
+                    <div className="kpi-content">
+                        <div className="kpi-label">INCIDENTES REPORTADOS</div>
+                        <div className="kpi-value" style={{color: totalIncidentes > 0 ? '#ef4444' : '#10b981'}}>{totalIncidentes}</div>
+                    </div>
                 </div>
             </div>
 
-            {/* CHARTS */}
-            <div className="charts-grid">
-                
-                {/* Interactive Donut Chart */}
-                <div className="chart-card">
-                    <div className="chart-title">Estado de Órdenes de Servicio</div>
-                    <ResponsiveContainer width="100%" height={300}>
-                        <PieChart>
-                            <Pie
-                                data={estadoOrdenes}
-                                cx="50%"
-                                cy="50%"
-                                innerRadius={80}
-                                outerRadius={120}
-                                dataKey="value"
-                                label={({ name, value }) => `${name} (${value})`}
-                            >
-                                {estadoOrdenes.map((entry, index) => (
-                                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                                ))}
-                            </Pie>
-                            <Tooltip />
-                        </PieChart>
-                    </ResponsiveContainer>
+            {/* Main Area Chart with Time Filter */}
+            <div className="chart-card premium-card main-chart-card">
+                <div className="chart-header">
+                    <div>
+                        <h2 className="chart-title">Evolución de Servicios Solicitados</h2>
+                        <p className="chart-subtitle">Análisis temporal de la demanda</p>
+                    </div>
+                    <div className="time-filters">
+                        <button className={`filter-btn ${timeFilter === 'day' ? 'active' : ''}`} onClick={() => setTimeFilter('day')}>Día</button>
+                        <button className={`filter-btn ${timeFilter === 'month' ? 'active' : ''}`} onClick={() => setTimeFilter('month')}>Mes</button>
+                        <button className={`filter-btn ${timeFilter === 'year' ? 'active' : ''}`} onClick={() => setTimeFilter('year')}>Año</button>
+                    </div>
                 </div>
-
-                {/* Suma de monto total (Area) -> Evolución de órdenes */}
-                <div className="chart-card">
-                    <div className="chart-title">Evolución de Servicios Solicitados (Mes a Mes)</div>
-                    <ResponsiveContainer width="100%" height={300}>
-                        <AreaChart data={ordenesPorMes} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                <div className="chart-wrapper">
+                    <ResponsiveContainer width="100%" height={320}>
+                        <AreaChart data={ordenesFiltradas} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                             <defs>
-                                <linearGradient id="colorMonto" x1="0" y1="0" x2="0" y2="1">
-                                    <stop offset="5%" stopColor="#80e27e" stopOpacity={0.8}/>
-                                    <stop offset="95%" stopColor="#80e27e" stopOpacity={0.1}/>
+                                <linearGradient id="colorPrimary" x1="0" y1="0" x2="0" y2="1">
+                                    <stop offset="5%" stopColor="#6366f1" stopOpacity={0.4}/>
+                                    <stop offset="95%" stopColor="#6366f1" stopOpacity={0.0}/>
                                 </linearGradient>
                             </defs>
-                            <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                            <XAxis dataKey="mes" tick={{ fontSize: 12 }} />
-                            <YAxis tick={{ fontSize: 12 }} />
-                            <Tooltip />
-                            <Area type="linear" dataKey="cantidad" stroke="#34a853" strokeWidth={2} fillOpacity={1} fill="url(#colorMonto)" />
+                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e7eb" />
+                            <XAxis dataKey="periodo" tick={{ fill: '#6b7280', fontSize: 12 }} axisLine={false} tickLine={false} />
+                            <YAxis tick={{ fill: '#6b7280', fontSize: 12 }} axisLine={false} tickLine={false} />
+                            <Tooltip 
+                                contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)' }}
+                            />
+                            <Area type="monotone" dataKey="cantidad" stroke="#6366f1" strokeWidth={3} fill="url(#colorPrimary)" />
                         </AreaChart>
                     </ResponsiveContainer>
                 </div>
+            </div>
+
+            <div className="charts-grid">
+                
+                {/* Interactive Donut Chart */}
+                <div className="chart-card premium-card">
+                    <h2 className="chart-title">Estado de Órdenes</h2>
+                    <p className="chart-subtitle">Distribución actual</p>
+                    <div className="chart-wrapper">
+                        <ResponsiveContainer width="100%" height={280}>
+                            <PieChart>
+                                <Pie
+                                    data={estadoOrdenes}
+                                    cx="50%"
+                                    cy="50%"
+                                    innerRadius={70}
+                                    outerRadius={100}
+                                    paddingAngle={5}
+                                    dataKey="value"
+                                    stroke="none"
+                                >
+                                    {estadoOrdenes.map((entry, index) => (
+                                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                                    ))}
+                                </Pie>
+                                <Tooltip contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)' }} />
+                                <Legend verticalAlign="bottom" height={36} iconType="circle" />
+                            </PieChart>
+                        </ResponsiveContainer>
+                    </div>
+                </div>
 
                 {/* Incidentes por Gravedad (Bar) */}
-                <div className="chart-card" style={{ gridColumn: '1 / -1' }}>
-                    <div className="chart-title">Incidentes Reportados por Gravedad</div>
-                    <ResponsiveContainer width="100%" height={250}>
-                        <BarChart data={incidentesGravedad} layout="vertical" margin={{ top: 5, right: 30, left: 40, bottom: 5 }}>
-                            <CartesianGrid strokeDasharray="3 3" horizontal={false} />
-                            <XAxis type="number" allowDecimals={false} />
-                            <YAxis dataKey="gravedad" type="category" tick={{ fontSize: 12 }} width={80} />
-                            <Tooltip />
-                            <Bar dataKey="cantidad" fill="#ea4335" barSize={40} label={{ position: 'insideRight', fill: '#fff' }}>
-                                {
-                                    incidentesGravedad.map((entry, index) => (
-                                        <Cell key={`cell-${index}`} fill={entry.gravedad.toUpperCase() === 'ALTA' ? '#d32f2f' : entry.gravedad.toUpperCase() === 'MEDIA' ? '#f57c00' : '#fbc02d'} />
-                                    ))
-                                }
-                            </Bar>
-                        </BarChart>
-                    </ResponsiveContainer>
+                <div className="chart-card premium-card">
+                    <h2 className="chart-title">Incidentes por Gravedad</h2>
+                    <p className="chart-subtitle">Clasificación de riesgos</p>
+                    <div className="chart-wrapper">
+                        <ResponsiveContainer width="100%" height={280}>
+                            <BarChart data={incidentesGravedad} layout="vertical" margin={{ top: 5, right: 30, left: 40, bottom: 5 }}>
+                                <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#e5e7eb" />
+                                <XAxis type="number" allowDecimals={false} tick={{ fill: '#6b7280' }} axisLine={false} tickLine={false} />
+                                <YAxis dataKey="gravedad" type="category" tick={{ fill: '#6b7280', fontSize: 12, fontWeight: 500 }} axisLine={false} tickLine={false} width={80} />
+                                <Tooltip cursor={{fill: 'transparent'}} contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)' }} />
+                                <Bar dataKey="cantidad" radius={[0, 4, 4, 0]} barSize={32}>
+                                    {
+                                        incidentesGravedad.map((entry, index) => {
+                                            const grav = entry.gravedad.toUpperCase();
+                                            const fillCol = grav === 'ALTA' ? '#ef4444' : grav === 'MEDIA' ? '#f59e0b' : '#10b981';
+                                            return <Cell key={`cell-${index}`} fill={fillCol} />;
+                                        })
+                                    }
+                                </Bar>
+                            </BarChart>
+                        </ResponsiveContainer>
+                    </div>
                 </div>
 
                 {/* Data Table */}
-                <div className="chart-card" style={{ gridColumn: '1 / -1' }}>
-                    <div className="chart-title" style={{marginBottom: '10px'}}>Rendimiento de Auditores</div>
+                <div className="chart-card premium-card" style={{ gridColumn: '1 / -1' }}>
+                    <h2 className="chart-title">Rendimiento de Auditores</h2>
                     <div className="data-table-container">
-                        <table className="data-table">
+                        <table className="modern-data-table">
                             <thead>
                                 <tr>
-                                    <th>Nombre del Auditor</th>
-                                    <th>Total de Auditorías Realizadas</th>
-                                    <th>Promedio de Calificación Otorgada</th>
+                                    <th>Auditor</th>
+                                    <th>Total Evaluaciones</th>
+                                    <th>Calificación Promedio</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 {rendimientoAuditores.length === 0 ? (
-                                    <tr><td colSpan="3" style={{textAlign: 'center'}}>No hay auditorías registradas</td></tr>
+                                    <tr><td colSpan="3" className="empty-state">No hay auditorías registradas</td></tr>
                                 ) : (
                                     rendimientoAuditores.map((aud, idx) => (
                                         <tr key={idx}>
-                                            <td style={{fontWeight: 'bold'}}>{aud.nombre}</td>
-                                            <td>{aud.cantidad}</td>
+                                            <td className="fw-600 text-dark">{aud.nombre}</td>
                                             <td>
-                                                <div style={{display: 'flex', alignItems: 'center', gap: '5px'}}>
-                                                    {aud.promedio} <span style={{color: '#fbbc05'}}>⭐</span>
+                                                <span className="badge-count">{aud.cantidad}</span>
+                                            </td>
+                                            <td>
+                                                <div className="rating-display">
+                                                    <span className="rating-number">{aud.promedio}</span>
+                                                    <span className="rating-star">⭐</span>
                                                 </div>
                                             </td>
                                         </tr>
@@ -241,3 +322,4 @@ const Dashboard = () => {
 };
 
 export default Dashboard;
+
