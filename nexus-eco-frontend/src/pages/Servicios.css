@@ -594,3 +594,34 @@
     font-weight: 600;
 }
 
+/* Searchable dropdown custom styles */
+.dropdown-options-list {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    background-color: #ffffff;
+    border: 1px solid #cbd5e1;
+    border-radius: 8px;
+    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+    max-height: 220px;
+    overflow-y: auto;
+    z-index: 1000;
+    margin-top: 4px;
+}
+
+.dropdown-option-item {
+    padding: 10px 14px;
+    cursor: pointer;
+    border-bottom: 1px solid #f1f5f9;
+    transition: background-color 0.15s ease;
+}
+
+.dropdown-option-item:last-child {
+    border-bottom: none;
+}
+
+.dropdown-option-item:hover {
+    background-color: #f8fafc !important;
+}
+

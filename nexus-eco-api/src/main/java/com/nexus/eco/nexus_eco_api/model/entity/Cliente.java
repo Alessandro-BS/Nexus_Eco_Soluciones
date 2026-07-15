@@ -13,6 +13,7 @@ public class Cliente {
     @Column(name = "razon_social", nullable = false)
     @jakarta.validation.constraints.NotBlank(message = "La razón social es obligatoria")
     @jakarta.validation.constraints.Size(max = 255, message = "La razón social no puede exceder 255 caracteres")
+    @jakarta.validation.constraints.Pattern(regexp = "^[^<>]*$", message = "La razón social no puede contener caracteres HTML (< o >)")
     private String razonSocial;
     
     @Column(unique = true, nullable = false)
@@ -20,9 +21,12 @@ public class Cliente {
     @jakarta.validation.constraints.Pattern(regexp = "^\\d{11}$", message = "El RUC debe tener exactamente 11 dígitos numéricos")
     private String ruc;
     
+    @Column(nullable = false)
+    @jakarta.validation.constraints.NotBlank(message = "La dirección es obligatoria")
     private String direccion;
     
-    @Column(name = "email_cliente")
+    @Column(name = "email_cliente", nullable = false)
+    @jakarta.validation.constraints.NotBlank(message = "El correo electrónico es obligatorio")
     @jakarta.validation.constraints.Email(message = "Debe ser un correo electrónico válido")
     private String emailCliente;
     private String estado = "ACTIVO";

@@ -7,15 +7,15 @@ import * as yup from 'yup';
 import './Clientes.css';
 
 const schema = yup.object().shape({
-    ruc: yup.string().required('El RUC es obligatorio').matches(/^\d{11}$/, 'El RUC debe tener 11 dígitos numéricos'),
-    razonSocial: yup.string().required('La razón social es obligatoria').max(255, 'Máximo 255 caracteres'),
-    direccion: yup.string().max(255, 'Máximo 255 caracteres').nullable(),
-    correo: yup.string().email('Debe ser un correo válido').nullable(),
+    ruc: yup.string().required('El RUC es obligatorio').matches(/^\d{11}$/, 'El RUC debe tener exactamente 11 dígitos numéricos'),
+    razonSocial: yup.string().required('La razón social es obligatoria').max(255, 'Máximo 255 caracteres').matches(/^[^<>]*$/, 'La razón social no puede contener caracteres HTML (< o >)'),
+    direccion: yup.string().required('La dirección es obligatoria').max(255, 'Máximo 255 caracteres'),
+    correo: yup.string().required('El correo electrónico es obligatorio').email('Debe ser un correo válido'),
     estado: yup.string().required('El estado es obligatorio'),
-    contactoNombre: yup.string().required('El nombre del contacto es obligatorio').max(100, 'Máximo 100 caracteres'),
-    contactoCargo: yup.string().max(100, 'Máximo 100 caracteres').nullable(),
-    contactoTelefono: yup.string().max(20, 'Máximo 20 caracteres').nullable(),
-    contactoCorreo: yup.string().email('Debe ser un correo válido').nullable()
+    contactoNombre: yup.string().required('El nombre del contacto es obligatorio').max(100, 'Máximo 100 caracteres').matches(/^[a-zA-ZáéíóúÁÉÍÓÚñÑ\s]+$/, 'El nombre solo debe contener letras'),
+    contactoCargo: yup.string().required('El cargo del contacto es obligatorio').max(100, 'Máximo 100 caracteres').matches(/^[a-zA-ZáéíóúÁÉÍÓÚñÑ\s]+$/, 'El cargo solo debe contener letras'),
+    contactoTelefono: yup.string().required('El teléfono del contacto es obligatorio').matches(/^9\d{8}$/, 'El teléfono debe ser un celular de Perú (9 dígitos)'),
+    contactoCorreo: yup.string().required('El correo del contacto es obligatorio').email('Debe ser un correo válido')
 });
 
 const Clientes = () => {
@@ -28,6 +28,8 @@ const Clientes = () => {
     // Filters state
     const [searchQuery, setSearchQuery] = useState('');
     const [statusFilter, setStatusFilter] = useState('ALL');
+    const [contactNameFilter, setContactNameFilter] = useState('');
+    const [contactPhoneFilter, setContactPhoneFilter] = useState('');
 
     const { register, handleSubmit, reset, setValue, formState: { errors } } = useForm({
         resolver: yupResolver(schema),
@@ -131,17 +133,26 @@ const Clientes = () => {
         }
     };
 
+    const cargosList = [...new Set(clientes.flatMap(c => c.contactos || []).map(cont => cont.cargo).filter(Boolean))];
+
     if (view === 'list') {
         const filteredClientes = clientes.filter(c => {
             const matchesSearch = (c.razonSocial || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
                                   (c.ruc || '').includes(searchQuery);
             const matchesStatus = statusFilter === 'ALL' || c.estado === statusFilter;
-            return matchesSearch && matchesStatus;
+            
+            const contact = c.contactos && c.contactos.length > 0 ? c.contactos[0] : {};
+            const matchesName = !contactNameFilter || (contact.nombreCon || '').toLowerCase().includes(contactNameFilter.toLowerCase());
+            const matchesPhone = !contactPhoneFilter || (contact.telefonoCon || '').includes(contactPhoneFilter);
+
+            return matchesSearch && matchesStatus && matchesName && matchesPhone;
         });
 
         const handleClearFilters = () => {
             setSearchQuery('');
             setStatusFilter('ALL');
+            setContactNameFilter('');
+            setContactPhoneFilter('');
         };
 
         return (
@@ -162,13 +173,33 @@ const Clientes = () => {
 
                 <div className="filters-bar">
                     <div className="filter-group search">
-                        <span className="filter-label">Buscar Cliente</span>
+                        <span className="filter-label">Buscar RUC / Razón Social</span>
                         <input 
                             type="text" 
                             className="filter-input" 
                             placeholder="Buscar por Razón Social o RUC..." 
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
+                        />
+                    </div>
+                    <div className="filter-group">
+                        <span className="filter-label">Nombre de Contacto</span>
+                        <input 
+                            type="text" 
+                            className="filter-input" 
+                            placeholder="Nombre del contacto..." 
+                            value={contactNameFilter}
+                            onChange={(e) => setContactNameFilter(e.target.value)}
+                        />
+                    </div>
+                    <div className="filter-group">
+                        <span className="filter-label">Teléfono</span>
+                        <input 
+                            type="text" 
+                            className="filter-input" 
+                            placeholder="Teléfono..." 
+                            value={contactPhoneFilter}
+                            onChange={(e) => setContactPhoneFilter(e.target.value)}
                         />
                     </div>
                     <div className="filter-group">
@@ -183,7 +214,7 @@ const Clientes = () => {
                             <option value="INACTIVO">Inactivo</option>
                         </select>
                     </div>
-                    {(searchQuery || statusFilter !== 'ALL') && (
+                    {(searchQuery || statusFilter !== 'ALL' || contactNameFilter || contactPhoneFilter) && (
                         <div className="filter-group action">
                             <button className="btn-filter-clear" onClick={handleClearFilters}>
                                 Limpiar Filtros
@@ -265,10 +296,15 @@ const Clientes = () => {
                         <label>RUC <span style={{color: 'red'}}>*</span></label>
                         <input 
                             type="text" 
+                            maxLength={11}
                             className={errors.ruc ? 'input-error' : ''}
                             placeholder="20XXXXXXXXX" 
                             disabled={!!editingId}
-                            {...register('ruc')} 
+                            {...register('ruc', {
+                                onChange: (e) => {
+                                    e.target.value = e.target.value.replace(/[^0-9]/g, '');
+                                }
+                            })} 
                         />
                         {errors.ruc && <span className="error-message">{errors.ruc.message}</span>}
                     </div>
@@ -283,7 +319,7 @@ const Clientes = () => {
                         {errors.razonSocial && <span className="error-message">{errors.razonSocial.message}</span>}
                     </div>
                     <div className="form-group full-width">
-                        <label>Dirección</label>
+                        <label>Dirección <span style={{color: 'red'}}>*</span></label>
                         <input 
                             type="text" 
                             className={errors.direccion ? 'input-error' : ''}
@@ -293,7 +329,7 @@ const Clientes = () => {
                         {errors.direccion && <span className="error-message">{errors.direccion.message}</span>}
                     </div>
                     <div className="form-group">
-                        <label>Correo del cliente</label>
+                        <label>Correo del cliente <span style={{color: 'red'}}>*</span></label>
                         <input 
                             type="email" 
                             className={errors.correo ? 'input-error' : ''}
@@ -331,7 +367,7 @@ const Clientes = () => {
                         {errors.contactoNombre && <span className="error-message">{errors.contactoNombre.message}</span>}
                     </div>
                     <div className="form-group">
-                        <label>Cargo del contacto</label>
+                        <label>Cargo del contacto <span style={{color: 'red'}}>*</span></label>
                         <input 
                             type="text" 
                             className={errors.contactoCargo ? 'input-error' : ''}
@@ -341,17 +377,22 @@ const Clientes = () => {
                         {errors.contactoCargo && <span className="error-message">{errors.contactoCargo.message}</span>}
                     </div>
                     <div className="form-group">
-                        <label>Teléfono del contacto</label>
+                        <label>Teléfono del contacto <span style={{color: 'red'}}>*</span></label>
                         <input 
                             type="text" 
+                            maxLength={9}
                             className={errors.contactoTelefono ? 'input-error' : ''}
-                            placeholder="+51 9XX XXX XXX" 
-                            {...register('contactoTelefono')} 
+                            placeholder="9XX XXX XXX" 
+                            {...register('contactoTelefono', {
+                                onChange: (e) => {
+                                    e.target.value = e.target.value.replace(/[^0-9]/g, '');
+                                }
+                            })} 
                         />
                         {errors.contactoTelefono && <span className="error-message">{errors.contactoTelefono.message}</span>}
                     </div>
                     <div className="form-group">
-                        <label>Correo del contacto</label>
+                        <label>Correo del contacto <span style={{color: 'red'}}>*</span></label>
                         <input 
                             type="email" 
                             className={errors.contactoCorreo ? 'input-error' : ''}

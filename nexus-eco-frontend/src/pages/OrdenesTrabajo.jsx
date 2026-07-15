@@ -17,6 +17,8 @@ const OrdenesTrabajo = () => {
     const [searchQuery, setSearchQuery] = useState('');
     const [priorityFilter, setPriorityFilter] = useState('ALL');
     const [statusFilter, setStatusFilter] = useState('ALL');
+    const [clientFilter, setClientFilter] = useState('ALL');
+    const [filterClientes, setFilterClientes] = useState([]);
 
     const [form, setForm] = useState({
         idOrdenServicio: '',
@@ -25,13 +27,28 @@ const OrdenesTrabajo = () => {
         estadoOt: 'PENDIENTE'
     });
 
+    // Searchable dropdown states
+    const [osSearch, setOsSearch] = useState('');
+    const [showOSDropdown, setShowOSDropdown] = useState(false);
+    const [formErrors, setFormErrors] = useState({});
+
     useEffect(() => {
         if (view === 'list') {
             fetchOrdenesTrabajo();
+            fetchFilterClientes();
         } else {
             fetchOrdenesServicio();
         }
     }, [view]);
+
+    const fetchFilterClientes = async () => {
+        try {
+            const response = await getClientes();
+            setFilterClientes(response.data);
+        } catch (error) {
+            console.error("Error fetching filter clients", error);
+        }
+    };
 
     const fetchOrdenesTrabajo = async () => {
         try {
@@ -48,9 +65,14 @@ const OrdenesTrabajo = () => {
     const fetchOrdenesServicio = async () => {
         try {
             const response = await getOrdenes();
-            setOrdenesServicio(response.data);
-            if (response.data.length > 0 && !form.idOrdenServicio) {
-                setForm(f => ({ ...f, idOrdenServicio: response.data[0].idOrdenServicio.toString() }));
+            // Sort OS descending (most recent first)
+            const sortedOS = response.data.sort((a, b) => b.idOrdenServicio - a.idOrdenServicio);
+            setOrdenesServicio(sortedOS);
+            
+            // Empty by default for new creations
+            if (!editingId) {
+                setForm(f => ({ ...f, idOrdenServicio: '' }));
+                setOsSearch('');
             }
         } catch (error) {
             console.error("Error al obtener órdenes de servicio", error);
@@ -59,16 +81,19 @@ const OrdenesTrabajo = () => {
 
     const handleChange = (e) => {
         setForm({ ...form, [e.target.name]: e.target.value });
+        setFormErrors(prev => ({ ...prev, [e.target.name]: null }));
     };
 
     const handleNew = () => {
         setEditingId(null);
         setForm({
-            idOrdenServicio: ordenesServicio.length > 0 ? ordenesServicio[0].idOrdenServicio.toString() : '',
+            idOrdenServicio: '',
             descripcionOt: '',
             prioridad: 'MEDIA',
             estadoOt: 'PENDIENTE'
         });
+        setOsSearch('');
+        setFormErrors({});
         setView('form');
     };
 
@@ -80,6 +105,12 @@ const OrdenesTrabajo = () => {
             prioridad: ot.prioridad || 'MEDIA',
             estadoOt: ot.estadoOt || 'PENDIENTE'
         });
+        if (ot.ordenServicio) {
+            setOsSearch(`${formatOS(ot.ordenServicio.idOrdenServicio)} - ${ot.ordenServicio.solicitudServicio?.cliente?.razonSocial || 'Cliente'}`);
+        } else {
+            setOsSearch('');
+        }
+        setFormErrors({});
         setView('form');
     };
 
@@ -97,10 +128,22 @@ const OrdenesTrabajo = () => {
     };
 
     const handleSave = async () => {
-        if (!form.idOrdenServicio || !form.descripcionOt) {
-            alert("Orden de Servicio y Descripción son requeridos.");
+        const errors = {};
+        if (!form.idOrdenServicio) {
+            errors.idOrdenServicio = "Debe seleccionar una Orden de Servicio Asociada.";
+        }
+        if (!form.descripcionOt || !form.descripcionOt.trim()) {
+            errors.descripcionOt = "La descripción de la tarea de la OT es obligatoria.";
+        }
+        if (/[<>]/.test(form.descripcionOt || '')) {
+            errors.descripcionOt = "La descripción no puede contener caracteres HTML (< o >).";
+        }
+
+        if (Object.keys(errors).length > 0) {
+            setFormErrors(errors);
             return;
         }
+        setFormErrors({});
 
         const payload = {
             idOrdenTrabajo: editingId,
@@ -135,13 +178,17 @@ const OrdenesTrabajo = () => {
             const matchesPriority = priorityFilter === 'ALL' || ot.prioridad === priorityFilter;
             const matchesStatus = statusFilter === 'ALL' || ot.estadoOt === statusFilter;
             
-            return matchesSearch && matchesPriority && matchesStatus;
+            // Client filter
+            const matchesClient = clientFilter === 'ALL' || (ot.ordenServicio?.solicitudServicio?.cliente?.idCliente?.toString() === clientFilter);
+
+            return matchesSearch && matchesPriority && matchesStatus && matchesClient;
         });
 
         const handleClearFilters = () => {
             setSearchQuery('');
             setPriorityFilter('ALL');
             setStatusFilter('ALL');
+            setClientFilter('ALL');
         };
 
         return (
@@ -172,6 +219,19 @@ const OrdenesTrabajo = () => {
                         />
                     </div>
                     <div className="filter-group">
+                        <span className="filter-label">Cliente</span>
+                        <select 
+                            className="filter-select" 
+                            value={clientFilter}
+                            onChange={(e) => setClientFilter(e.target.value)}
+                        >
+                            <option value="ALL">Todos los clientes</option>
+                            {filterClientes.map(c => (
+                                <option key={c.idCliente} value={c.idCliente}>{c.razonSocial}</option>
+                            ))}
+                        </select>
+                    </div>
+                    <div className="filter-group">
                         <span className="filter-label">Prioridad</span>
                         <select 
                             className="filter-select" 
@@ -197,7 +257,7 @@ const OrdenesTrabajo = () => {
                             <option value="COMPLETADO">COMPLETADO</option>
                         </select>
                     </div>
-                    {(searchQuery || priorityFilter !== 'ALL' || statusFilter !== 'ALL') && (
+                    {(searchQuery || priorityFilter !== 'ALL' || statusFilter !== 'ALL' || clientFilter !== 'ALL') && (
                         <div className="filter-group action">
                             <button className="btn-filter-clear" onClick={handleClearFilters}>
                                 Limpiar Filtros
@@ -280,15 +340,55 @@ const OrdenesTrabajo = () => {
                 </div>
                 <div className="form-grid">
                     <div className="form-group">
-                        <label>Orden de Servicio Asociada</label>
-                        <select name="idOrdenServicio" value={form.idOrdenServicio} onChange={handleChange} required>
-                            <option value="">-- Seleccionar Orden Servicio --</option>
-                            {ordenesServicio.map(os => (
-                                <option key={os.idOrdenServicio} value={os.idOrdenServicio}>
-                                    {formatOS(os.idOrdenServicio)} - {os.solicitudServicio?.cliente?.razonSocial || 'Cliente'}
-                                </option>
-                            ))}
-                        </select>
+                        <label>Orden de Servicio Asociada <span style={{color: 'red'}}>*</span></label>
+                        <div className="searchable-dropdown-wrapper" style={{ position: 'relative' }}>
+                            <input 
+                                type="text"
+                                className={formErrors.idOrdenServicio ? 'input-error' : ''}
+                                placeholder="Escribe para buscar Orden de Servicio..."
+                                value={osSearch}
+                                onFocus={() => setShowOSDropdown(true)}
+                                onChange={(e) => {
+                                    setOsSearch(e.target.value);
+                                    const matched = ordenesServicio.find(os => `${formatOS(os.idOrdenServicio)} - ${os.solicitudServicio?.cliente?.razonSocial || 'Cliente'}` === e.target.value);
+                                    setForm(f => ({ ...f, idOrdenServicio: matched ? matched.idOrdenServicio.toString() : '' }));
+                                    setFormErrors(prev => ({ ...prev, idOrdenServicio: null }));
+                                }}
+                                onBlur={() => {
+                                    setTimeout(() => setShowOSDropdown(false), 200);
+                                }}
+                                required
+                            />
+                            {formErrors.idOrdenServicio && <span className="error-message">{formErrors.idOrdenServicio}</span>}
+                            {showOSDropdown && (
+                                <div className="dropdown-options-list">
+                                    {ordenesServicio.filter(os => 
+                                        `${formatOS(os.idOrdenServicio)} ${os.solicitudServicio?.cliente?.razonSocial || ''}`.toLowerCase().includes(osSearch.toLowerCase())
+                                    ).map(os => (
+                                        <div 
+                                            key={os.idOrdenServicio}
+                                            className="dropdown-option-item"
+                                            onMouseDown={() => {
+                                                const text = `${formatOS(os.idOrdenServicio)} - ${os.solicitudServicio?.cliente?.razonSocial || 'Cliente'}`;
+                                                setOsSearch(text);
+                                                setForm(f => ({ ...f, idOrdenServicio: os.idOrdenServicio.toString() }));
+                                                setShowOSDropdown(false);
+                                            }}
+                                        >
+                                            <div style={{ fontWeight: '500', color: '#1e293b' }}>{formatOS(os.idOrdenServicio)}</div>
+                                            <div style={{ fontSize: '12px', color: '#64748b' }}>{os.solicitudServicio?.cliente?.razonSocial || 'Cliente'}</div>
+                                        </div>
+                                    ))}
+                                    {ordenesServicio.filter(os => 
+                                        `${formatOS(os.idOrdenServicio)} ${os.solicitudServicio?.cliente?.razonSocial || ''}`.toLowerCase().includes(osSearch.toLowerCase())
+                                    ).length === 0 && (
+                                        <div style={{ padding: '10px 12px', color: '#64748b', fontStyle: 'italic' }}>
+                                            No se encontraron Órdenes de Servicio
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+                        </div>
                     </div>
                     <div className="form-group">
                         <label>Prioridad</label>
@@ -299,25 +399,37 @@ const OrdenesTrabajo = () => {
                         </select>
                     </div>
                     <div className="form-group">
-                        <label>Estado</label>
-                        <select name="estadoOt" value={form.estadoOt} onChange={handleChange}>
-                            <option value="PENDIENTE">PENDIENTE</option>
-                            <option value="EN_PROCESO">EN PROCESO</option>
-                            <option value="COMPLETADO">COMPLETADO</option>
-                        </select>
+                        <label>Estado (Automatizado)</label>
+                        <input 
+                            type="text" 
+                            name="estadoOt" 
+                            readOnly 
+                            value={form.estadoOt} 
+                            style={{ background: '#f8fafc', color: '#64748b', cursor: 'not-allowed' }} 
+                        />
                     </div>
                     <div className="form-group full-width">
-                        <label>Descripción de la Tarea</label>
-                        <textarea name="descripcionOt" value={form.descripcionOt} onChange={handleChange} placeholder="Detallar tareas a realizar..." rows="5" style={{
-                            width: '100%',
-                            padding: '10px 12px',
-                            border: '1px solid #cbd5e1',
-                            borderRadius: '4px',
-                            fontFamily: 'inherit',
-                            fontSize: '14px',
-                            outline: 'none',
-                            resize: 'vertical'
-                        }} required />
+                        <label>Descripción de la Tarea <span style={{color: 'red'}}>*</span></label>
+                        <textarea 
+                            className={formErrors.descripcionOt ? 'input-error' : ''}
+                            name="descripcionOt" 
+                            value={form.descripcionOt} 
+                            onChange={handleChange} 
+                            placeholder="Detallar tareas a realizar..." 
+                            rows="5" 
+                            style={{
+                                width: '100%',
+                                padding: '10px 12px',
+                                border: '1px solid #cbd5e1',
+                                borderRadius: '4px',
+                                fontFamily: 'inherit',
+                                fontSize: '14px',
+                                outline: 'none',
+                                resize: 'vertical'
+                            }} 
+                            required 
+                        />
+                        {formErrors.descripcionOt && <span className="error-message">{formErrors.descripcionOt}</span>}
                     </div>
                 </div>
             </div>

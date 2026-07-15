@@ -22,6 +22,8 @@ const Ejecucion = () => {
     const [searchQuery, setSearchQuery] = useState('');
     const [statusFilter, setStatusFilter] = useState('ALL');
     const [resultFilter, setResultFilter] = useState('ALL');
+    const [startDateFilter, setStartDateFilter] = useState('');
+    const [endDateFilter, setEndDateFilter] = useState('');
     
     // Selected Context
     const [selectedPlan, setSelectedPlan] = useState(null);
@@ -30,7 +32,7 @@ const Ejecucion = () => {
     // Form fields
     const [form, setForm] = useState({
         fechaEjecucion: new Date().toISOString().split('T')[0],
-        resultado: 'Satisfactorio (Pass)',
+        resultado: 'Exitoso',
         observacionesEj: '',
         mongoDocId: null,
         archivoSubido: null
@@ -43,6 +45,7 @@ const Ejecucion = () => {
 
     const [uploading, setUploading] = useState(false);
     const fileInputRef = useRef(null);
+    const [formErrors, setFormErrors] = useState({});
 
     useEffect(() => {
         if (view === 'list') {
@@ -72,7 +75,7 @@ const Ejecucion = () => {
             setEditingId(exec.idEjecucionService || exec.idEjecucionServicio);
             setForm({
                 fechaEjecucion: exec.fechaEjecucion ? exec.fechaEjecucion.split('T')[0] : new Date().toISOString().split('T')[0],
-                resultado: exec.resultado || 'Satisfactorio (Pass)',
+                resultado: exec.resultado || 'Exitoso',
                 observacionesEj: exec.observacionesEj || '',
                 mongoDocId: exec.mongoDocId || null,
                 archivoSubido: exec.mongoDocId ? 'Evidencia guardada en MongoDB' : null
@@ -81,12 +84,13 @@ const Ejecucion = () => {
             setEditingId(null);
             setForm({
                 fechaEjecucion: new Date().toISOString().split('T')[0],
-                resultado: 'Satisfactorio (Pass)',
+                resultado: 'Exitoso',
                 observacionesEj: '',
                 mongoDocId: null,
                 archivoSubido: null
             });
         }
+        setFormErrors({});
         setView('form');
     };
 
@@ -102,6 +106,7 @@ const Ejecucion = () => {
                 mongoDocId: res.data.mongo_doc_id,
                 archivoSubido: res.data.nombre
             }));
+            setFormErrors(prev => ({ ...prev, mongoDocId: null }));
             alert("Archivo subido a MongoDB Compass exitosamente");
         } catch (error) {
             console.error("Error uploading file", error);
@@ -112,8 +117,23 @@ const Ejecucion = () => {
     };
 
     const handleGuardarEjecucion = async () => {
-        if (!form.fechaEjecucion || !form.resultado) {
-            alert("La fecha y resultado son requeridos.");
+        const errors = {};
+        if (!form.fechaEjecucion) {
+            errors.fechaEjecucion = "Debe ingresar la fecha de ejecución.";
+        }
+        if (!form.resultado) {
+            errors.resultado = "Debe registrar el resultado del servicio.";
+        }
+        if (!form.observacionesEj || !form.observacionesEj.trim()) {
+            alert("Las observaciones de la ejecución son obligatorias.");
+            return;
+        }
+        if (/[<>]/.test(form.observacionesEj)) {
+            alert("Las observaciones no pueden contener caracteres HTML (< o >).");
+            return;
+        }
+        if (!form.mongoDocId) {
+            alert("Debe subir un archivo de evidencia (PDF o imagen) antes de guardar el registro.");
             return;
         }
 
@@ -173,16 +193,25 @@ const Ejecucion = () => {
             
             let matchesResult = true;
             if (resultFilter !== 'ALL') {
-                matchesResult = exec && exec.resultado === resultFilter;
+                const execResNormal = (exec?.resultado || '').toUpperCase().replace(/_/g, ' ').trim();
+                const filterResNormal = resultFilter.toUpperCase().replace(/_/g, ' ').trim();
+                matchesResult = exec && execResNormal === filterResNormal;
             }
+
+            // Date Range Filter on fechaProgramada
+            const planDateStr = p.fechaProgramada ? p.fechaProgramada.split('T')[0] : '';
+            const matchesStartDate = !startDateFilter || planDateStr >= startDateFilter;
+            const matchesEndDate = !endDateFilter || planDateStr <= endDateFilter;
             
-            return matchesSearch && matchesStatus && matchesResult;
+            return matchesSearch && matchesStatus && matchesResult && matchesStartDate && matchesEndDate;
         });
 
         const handleClearFilters = () => {
             setSearchQuery('');
             setStatusFilter('ALL');
             setResultFilter('ALL');
+            setStartDateFilter('');
+            setEndDateFilter('');
         };
 
         return (
@@ -227,11 +256,30 @@ const Ejecucion = () => {
                             onChange={(e) => setResultFilter(e.target.value)}
                         >
                             <option value="ALL">Todos los Resultados</option>
-                            <option value="Satisfactorio (Pass)">Satisfactorio (Pass)</option>
-                            <option value="Insatisfactorio (Fail)">Insatisfactorio (Fail)</option>
+                            <option value="Exitoso">Exitoso</option>
+                            <option value="Con Observaciones">Con Observaciones</option>
+                            <option value="No Exitoso">No Exitoso</option>
                         </select>
                     </div>
-                    {(searchQuery || statusFilter !== 'ALL' || resultFilter !== 'ALL') && (
+                    <div className="filter-group">
+                        <span className="filter-label">Desde</span>
+                        <input 
+                            type="date" 
+                            className="filter-input" 
+                            value={startDateFilter}
+                            onChange={(e) => setStartDateFilter(e.target.value)}
+                        />
+                    </div>
+                    <div className="filter-group">
+                        <span className="filter-label">Hasta</span>
+                        <input 
+                            type="date" 
+                            className="filter-input" 
+                            value={endDateFilter}
+                            onChange={(e) => setEndDateFilter(e.target.value)}
+                        />
+                    </div>
+                    {(searchQuery || statusFilter !== 'ALL' || resultFilter !== 'ALL' || startDateFilter || endDateFilter) && (
                         <div className="filter-group action">
                             <button className="btn-filter-clear" onClick={handleClearFilters}>
                                 Limpiar
@@ -335,7 +383,7 @@ const Ejecucion = () => {
                                     <div><strong>Cliente:</strong> {detailedPlan.ordenServicio?.solicitudServicio?.cliente?.razonSocial || 'Desconocido'}</div>
                                     <div><strong>Ubicación:</strong> {detailedPlan.ubicacion ? `${detailedPlan.ubicacion.calle}, ${detailedPlan.ubicacion.distrito}` : '-'}</div>
                                     <div><strong>Fecha Ejecución:</strong> {detailedExecution.fechaEjecucion?.split('T')[0]}</div>
-                                    <div><strong>Resultado de Servicio:</strong> <span style={{ fontWeight: 'bold', color: detailedExecution.resultado?.includes('Satisfactorio') ? '#10b981' : '#ef4444' }}>{detailedExecution.resultado}</span></div>
+                                    <div><strong>Resultado de Servicio:</strong> <span style={{ fontWeight: 'bold', color: (detailedExecution.resultado || '').toUpperCase().replace(/_/g, ' ').trim() === 'EXITOSO' ? '#10b981' : ((detailedExecution.resultado || '').toUpperCase().replace(/_/g, ' ').trim() === 'CON OBSERVACIONES' ? '#f59e0b' : '#ef4444') }}>{detailedExecution.resultado}</span></div>
                                 </div>
                                 <div style={{ background: '#f8fafc', padding: '12px', borderRadius: '4px', marginBottom: '16px' }}>
                                     <strong>Observaciones de Ejecución:</strong>
@@ -392,40 +440,57 @@ const Ejecucion = () => {
 
                     <div className="form-grid">
                         <div className="form-group">
-                            <label>Fecha de ejecución</label>
+                            <label>Fecha de ejecución <span style={{color: 'red'}}>*</span></label>
                             <input 
                                 type="date" 
+                                className={formErrors.fechaEjecucion ? 'input-error' : ''}
                                 value={form.fechaEjecucion} 
-                                onChange={(e) => setForm({...form, fechaEjecucion: e.target.value})} 
+                                onChange={(e) => {
+                                    setForm({...form, fechaEjecucion: e.target.value});
+                                    setFormErrors(prev => ({ ...prev, fechaEjecucion: null }));
+                                }} 
                             />
+                            {formErrors.fechaEjecucion && <span className="error-message">{formErrors.fechaEjecucion}</span>}
                         </div>
                         <div className="form-group">
-                            <label>Resultado</label>
+                            <label>Resultado <span style={{color: 'red'}}>*</span></label>
                             <select 
+                                className={formErrors.resultado ? 'input-error' : ''}
                                 value={form.resultado} 
-                                onChange={(e) => setForm({...form, resultado: e.target.value})}
+                                onChange={(e) => {
+                                    setForm({...form, resultado: e.target.value});
+                                    setFormErrors(prev => ({ ...prev, resultado: null }));
+                                }}
                             >
-                                <option value="Satisfactorio (Pass)">Satisfactorio (Pass)</option>
-                                <option value="Insatisfactorio (Fail)">Insatisfactorio (Fail)</option>
+                                <option value="Exitoso">Exitoso</option>
+                                <option value="Con Observaciones">Con Observaciones</option>
+                                <option value="No Exitoso">No Exitoso</option>
                             </select>
+                            {formErrors.resultado && <span className="error-message">{formErrors.resultado}</span>}
                         </div>
                     </div>
 
                     <div className="form-group mt-16">
-                        <label>Observaciones del técnico</label>
+                        <label>Observaciones del técnico <span style={{color: 'red'}}>*</span></label>
                         <textarea 
+                            className={formErrors.observacionesEj ? 'input-error' : ''}
                             placeholder="Describa cualquier incidencia o detalle relevante durante la ejecución..."
                             rows="4"
                             value={form.observacionesEj}
-                            onChange={(e) => setForm({...form, observacionesEj: e.target.value})}
+                            onChange={(e) => {
+                                setForm({...form, observacionesEj: e.target.value});
+                                setFormErrors(prev => ({ ...prev, observacionesEj: null }));
+                            }}
                         ></textarea>
+                        {formErrors.observacionesEj && <span className="error-message">{formErrors.observacionesEj}</span>}
                     </div>
                 </div>
 
-                <div className="upload-card">
+                <div className="upload-card" style={{ border: formErrors.mongoDocId ? '1px solid #ef4444' : '1px dashed #cbd5e1' }}>
                     <div className="upload-header">
-                        <h2 className="card-title inline-title">Evidencias del servicio</h2>
+                        <h2 className="card-title inline-title">Evidencias del servicio <span style={{color: 'red'}}>*</span></h2>
                         <p className="upload-subtitle">Sube tu hoja de servicio firmada o fotos del campo a MongoDB.</p>
+                        {formErrors.mongoDocId && <span className="error-message" style={{ display: 'block', marginTop: '5px' }}>{formErrors.mongoDocId}</span>}
                     </div>
 
                     <div className="dropzone" onClick={() => fileInputRef.current.click()} style={{ cursor: 'pointer' }}>

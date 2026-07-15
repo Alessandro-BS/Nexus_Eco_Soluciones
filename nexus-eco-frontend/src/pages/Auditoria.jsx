@@ -438,7 +438,9 @@ const Auditoria = () => {
             const orderIdStr = formatOS(ej.planificacionServicio?.ordenServicio?.idOrdenServicio || ej.idEjecucionServicio).toLowerCase();
             
             const matchesSearch = clientName.includes(searchQuery.toLowerCase()) || orderIdStr.includes(searchQuery.toLowerCase());
-            const matchesResult = resultFilter === 'ALL' || ej.resultado === resultFilter;
+            const ejResNormal = (ej.resultado || '').toUpperCase().replace(/_/g, ' ').trim();
+            const filterResNormal = resultFilter.toUpperCase().replace(/_/g, ' ').trim();
+            const matchesResult = resultFilter === 'ALL' || ejResNormal === filterResNormal;
             
             return matchesSearch && matchesResult;
         });
@@ -478,8 +480,9 @@ const Auditoria = () => {
                             onChange={(e) => setResultFilter(e.target.value)}
                         >
                             <option value="ALL">Todos los Resultados</option>
-                            <option value="Satisfactorio (Pass)">Satisfactorio (Pass)</option>
-                            <option value="No Satisfactorio">No Satisfactorio</option>
+                            <option value="Exitoso">Exitoso</option>
+                            <option value="Con Observaciones">Con Observaciones</option>
+                            <option value="No Exitoso">No Exitoso</option>
                         </select>
                     </div>
                     {(searchQuery || resultFilter !== 'ALL') && (
@@ -512,7 +515,26 @@ const Auditoria = () => {
                                     <tr key={ej.idEjecucionServicio} style={{borderBottom: '1px solid #f1f5f9'}}>
                                         <td style={{padding: '16px', fontWeight: 'bold'}}>{formatOS(ej.planificacionServicio?.ordenServicio?.idOrdenServicio || ej.idEjecucionServicio)}</td>
                                         <td style={{padding: '16px'}}>{new Date(ej.fechaEjecucion).toLocaleDateString()}</td>
-                                        <td style={{padding: '16px'}}>{ej.resultado || 'N/A'}</td>
+                                        <td style={{padding: '16px'}}>
+                                            {(() => {
+                                                const resNormal = (ej.resultado || '').toUpperCase().replace(/_/g, ' ').trim();
+                                                const isExitoso = resNormal === 'EXITOSO';
+                                                const isObservaciones = resNormal === 'CON OBSERVACIONES';
+                                                return (
+                                                    <span style={{
+                                                        padding: '4px 8px',
+                                                        borderRadius: '4px',
+                                                        fontSize: '11px',
+                                                        fontWeight: 'bold',
+                                                        textTransform: 'uppercase',
+                                                        background: isExitoso ? '#dcfce7' : (isObservaciones ? '#fef3c7' : '#fee2e2'),
+                                                        color: isExitoso ? '#15803d' : (isObservaciones ? '#b45309' : '#b91c1c')
+                                                    }}>
+                                                        {ej.resultado || 'N/A'}
+                                                    </span>
+                                                );
+                                            })()}
+                                        </td>
                                         <td style={{padding: '16px'}}>{ej.planificacionServicio?.ordenServicio?.solicitudServicio?.cliente?.razonSocial || '-'}</td>
                                         <td style={{padding: '16px'}}>
                                             <button 

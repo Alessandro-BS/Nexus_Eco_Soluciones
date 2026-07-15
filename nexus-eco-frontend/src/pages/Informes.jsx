@@ -153,12 +153,6 @@ const Informes = () => {
             const sol = os?.solicitudServicio;
             const cliente = sol?.cliente;
             const detalles = os?.detalles || [];
-            
-            const printWindow = window.open('', '_blank');
-            if (!printWindow) {
-                alert("Por favor, permita las ventanas emergentes para generar el PDF.");
-                return;
-            }
 
             const htmlContent = `
                 <html>
@@ -274,6 +268,8 @@ const Informes = () => {
                             margin-top: 80px;
                             display: flex;
                             justify-content: space-around;
+                            page-break-inside: avoid;
+                            break-inside: avoid;
                         }
                         .signature-box {
                             width: 220px;
@@ -282,6 +278,8 @@ const Informes = () => {
                             padding-top: 10px;
                             font-size: 12px;
                             color: #475569;
+                            page-break-inside: avoid;
+                            break-inside: avoid;
                         }
                         @media print {
                             body { padding: 0; }
@@ -385,17 +383,30 @@ const Informes = () => {
                         <p>© 2026 Econexus Soluciones Ambientales. Todos los derechos reservados. Impreso de forma automática por el sistema.</p>
                     </div>
 
-                    <script>
-                        window.onload = function() {
-                            window.print();
-                        }
-                    </script>
                 </body>
                 </html>
             `;
-            printWindow.document.open();
-            printWindow.document.write(htmlContent);
-            printWindow.document.close();
+
+            // Save original styles to prevent overflow clipping
+            const originalBodyOverflow = document.body.style.overflow;
+            const originalHtmlOverflow = document.documentElement.style.overflow;
+            document.body.style.overflow = 'visible';
+            document.documentElement.style.overflow = 'visible';
+            
+            const opt = {
+                margin:       [10, 10, 10, 10],
+                filename:     `Reporte_Econexus_${formatInforme(inf.idInformeServicio)}.pdf`,
+                image:        { type: 'jpeg', quality: 0.98 },
+                html2canvas:  { scale: 2, useCORS: true, logging: false },
+                jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
+            };
+            
+            try {
+                await html2pdf().set(opt).from(htmlContent).save();
+            } finally {
+                document.body.style.overflow = originalBodyOverflow;
+                document.documentElement.style.overflow = originalHtmlOverflow;
+            }
         } catch (error) {
             console.error("Error al generar PDF", error);
             alert("No se pudo generar el reporte PDF.");

@@ -21,7 +21,9 @@ const Planificacion = () => {
     // Filters state
     const [searchQuery, setSearchQuery] = useState('');
     const [statusFilter, setStatusFilter] = useState('ALL');
-    const [dateFilter, setDateFilter] = useState('');
+    const [startDateFilter, setStartDateFilter] = useState('');
+    const [endDateFilter, setEndDateFilter] = useState('');
+    const [districtFilter, setDistrictFilter] = useState('ALL');
 
     // Details Modal State
     const [showDetailsModal, setShowDetailsModal] = useState(false);
@@ -43,6 +45,7 @@ const Planificacion = () => {
     });
 
     const [selectedTecnicos, setSelectedTecnicos] = useState([]); // List of technician IDs
+    const [formErrors, setFormErrors] = useState({});
 
     useEffect(() => {
         if (view === 'list') {
@@ -100,14 +103,18 @@ const Planificacion = () => {
 
     const handleChange = (e) => {
         setForm({ ...form, [e.target.name]: e.target.value });
+        setFormErrors(prev => ({ ...prev, [e.target.name]: null }));
     };
 
     const handleTechCheckboxChange = (id) => {
+        let newTechs;
         if (selectedTecnicos.includes(id)) {
-            setSelectedTecnicos(selectedTecnicos.filter(tid => tid !== id));
+            newTechs = selectedTecnicos.filter(tid => tid !== id);
         } else {
-            setSelectedTecnicos([...selectedTecnicos, id]);
+            newTechs = [...selectedTecnicos, id];
         }
+        setSelectedTecnicos(newTechs);
+        setFormErrors(prev => ({ ...prev, tecnicos: null }));
     };
 
     const handleNew = () => {
@@ -124,6 +131,7 @@ const Planificacion = () => {
             referencia: '',
             idUbicacion: null
         });
+        setFormErrors({});
         setView('form');
     };
 
@@ -154,6 +162,7 @@ const Planificacion = () => {
             referencia: u.referencia || '',
             idUbicacion: u.idUbicacion || null
         });
+        setFormErrors({});
         setView('form');
     };
 
@@ -178,15 +187,41 @@ const Planificacion = () => {
     };
 
     const handleSave = async () => {
-        if (!form.idOrdenServicio || !form.distrito || !form.calle) {
-            alert("Orden de Servicio, Distrito y Calle son requeridos.");
-            return;
+        const errors = {};
+        if (!form.idOrdenServicio) {
+            errors.idOrdenServicio = "Debe seleccionar una Orden de Servicio Asociada.";
         }
+        if (!form.fechaProgramada) {
+            errors.fechaProgramada = "Debe programar la fecha de la visita.";
+        }
+        if (!form.horaInicio) {
+            errors.horaInicio = "Debe especificar la hora de inicio.";
+        }
+        if (!form.calle || !form.calle.trim()) {
+            errors.calle = "La calle de la dirección es obligatoria.";
+        }
+        if (!form.distrito || !form.distrito.trim()) {
+            errors.distrito = "El distrito de la dirección es obligatorio.";
+        }
+        if (!form.provincia || !form.provincia.trim()) {
+            errors.provincia = "La provincia de la dirección es obligatoria.";
+        }
+        
+        // Prevent code injection
+        if (/[<>]/.test(form.calle || '')) errors.calle = "La calle no puede contener caracteres HTML (< o >).";
+        if (/[<>]/.test(form.distrito || '')) errors.distrito = "El distrito no puede contener caracteres HTML (< o >).";
+        if (/[<>]/.test(form.provincia || '')) errors.provincia = "La provincia no puede contener caracteres HTML (< o >).";
+        if (/[<>]/.test(form.referencia || '')) errors.referencia = "La referencia no puede contener caracteres HTML (< o >).";
 
         if (selectedTecnicos.length === 0) {
-            alert("Debe asignar al menos un técnico.");
+            errors.tecnicos = "Debe asignar al menos un técnico (el primero será el Líder del equipo).";
+        }
+
+        if (Object.keys(errors).length > 0) {
+            setFormErrors(errors);
             return;
         }
+        setFormErrors({});
 
         try {
             // Step 1: Save Ubicacion
@@ -265,6 +300,8 @@ const Planificacion = () => {
         }
     };
 
+    const distritosList = [...new Set(planificaciones.map(p => p.ubicacion?.distrito).filter(Boolean))];
+
     const filteredPlanificaciones = planificaciones.filter(p => {
         const clientName = (p.ordenServicio?.solicitudServicio?.cliente?.razonSocial || '').toLowerCase();
         const locationDist = (p.ubicacion?.distrito || '').toLowerCase();
@@ -277,15 +314,24 @@ const Planificacion = () => {
                               planId.includes(searchQuery.toLowerCase());
                               
         const matchesStatus = statusFilter === 'ALL' || p.estadoPlan === statusFilter;
-        const matchesDate = !dateFilter || (p.fechaProgramada && p.fechaProgramada.split('T')[0] === dateFilter);
         
-        return matchesSearch && matchesStatus && matchesDate;
+        // Date range
+        const planDateStr = p.fechaProgramada ? p.fechaProgramada.split('T')[0] : '';
+        const matchesStartDate = !startDateFilter || planDateStr >= startDateFilter;
+        const matchesEndDate = !endDateFilter || planDateStr <= endDateFilter;
+
+        // District filter
+        const matchesDistrict = districtFilter === 'ALL' || (p.ubicacion?.distrito === districtFilter);
+        
+        return matchesSearch && matchesStatus && matchesStartDate && matchesEndDate && matchesDistrict;
     });
 
     const handleClearFilters = () => {
         setSearchQuery('');
         setStatusFilter('ALL');
-        setDateFilter('');
+        setStartDateFilter('');
+        setEndDateFilter('');
+        setDistrictFilter('ALL');
     };
 
     return (
@@ -318,6 +364,19 @@ const Planificacion = () => {
                             />
                         </div>
                         <div className="filter-group">
+                            <span className="filter-label">Distrito</span>
+                            <select 
+                                className="filter-select" 
+                                value={districtFilter}
+                                onChange={(e) => setDistrictFilter(e.target.value)}
+                            >
+                                <option value="ALL">Todos los distritos</option>
+                                {distritosList.map((dist, idx) => (
+                                    <option key={idx} value={dist}>{dist}</option>
+                                ))}
+                            </select>
+                        </div>
+                        <div className="filter-group">
                             <span className="filter-label">Estado</span>
                             <select 
                                 className="filter-select" 
@@ -331,15 +390,24 @@ const Planificacion = () => {
                             </select>
                         </div>
                         <div className="filter-group">
-                            <span className="filter-label">Fecha Programada</span>
+                            <span className="filter-label">Desde</span>
                             <input 
                                 type="date" 
                                 className="filter-input" 
-                                value={dateFilter}
-                                onChange={(e) => setDateFilter(e.target.value)}
+                                value={startDateFilter}
+                                onChange={(e) => setStartDateFilter(e.target.value)}
                             />
                         </div>
-                        {(searchQuery || statusFilter !== 'ALL' || dateFilter) && (
+                        <div className="filter-group">
+                            <span className="filter-label">Hasta</span>
+                            <input 
+                                type="date" 
+                                className="filter-input" 
+                                value={endDateFilter}
+                                onChange={(e) => setEndDateFilter(e.target.value)}
+                            />
+                        </div>
+                        {(searchQuery || statusFilter !== 'ALL' || startDateFilter || endDateFilter || districtFilter !== 'ALL') && (
                             <div className="filter-group action">
                                 <button className="btn-filter-clear" onClick={handleClearFilters}>
                                     Limpiar
@@ -419,8 +487,14 @@ const Planificacion = () => {
                         </div>
                         <div className="form-grid">
                             <div className="form-group">
-                                <label>Orden de Servicio</label>
-                                <select name="idOrdenServicio" value={form.idOrdenServicio} onChange={handleChange} required>
+                                <label>Orden de Servicio <span style={{color: 'red'}}>*</span></label>
+                                <select 
+                                    className={formErrors.idOrdenServicio ? 'input-error' : ''} 
+                                    name="idOrdenServicio" 
+                                    value={form.idOrdenServicio} 
+                                    onChange={handleChange} 
+                                    required
+                                >
                                     <option value="">-- Seleccionar Orden --</option>
                                     {ordenes.map(os => (
                                         <option key={os.idOrdenServicio} value={os.idOrdenServicio}>
@@ -428,22 +502,41 @@ const Planificacion = () => {
                                         </option>
                                     ))}
                                 </select>
+                                {formErrors.idOrdenServicio && <span className="error-message">{formErrors.idOrdenServicio}</span>}
                             </div>
                             <div className="form-group">
-                                <label>Fecha Programada</label>
-                                <input type="date" name="fechaProgramada" value={form.fechaProgramada} onChange={handleChange} required />
+                                <label>Fecha Programada <span style={{color: 'red'}}>*</span></label>
+                                <input 
+                                    type="date" 
+                                    className={formErrors.fechaProgramada ? 'input-error' : ''} 
+                                    name="fechaProgramada" 
+                                    value={form.fechaProgramada} 
+                                    onChange={handleChange} 
+                                    required 
+                                />
+                                {formErrors.fechaProgramada && <span className="error-message">{formErrors.fechaProgramada}</span>}
                             </div>
                             <div className="form-group">
-                                <label>Hora de Inicio</label>
-                                <input type="time" name="horaInicio" value={form.horaInicio} onChange={handleChange} required />
+                                <label>Hora de Inicio <span style={{color: 'red'}}>*</span></label>
+                                <input 
+                                    type="time" 
+                                    className={formErrors.horaInicio ? 'input-error' : ''} 
+                                    name="horaInicio" 
+                                    value={form.horaInicio} 
+                                    onChange={handleChange} 
+                                    required 
+                                />
+                                {formErrors.horaInicio && <span className="error-message">{formErrors.horaInicio}</span>}
                             </div>
                             <div className="form-group">
-                                <label>Estado</label>
-                                <select name="estadoPlan" value={form.estadoPlan} onChange={handleChange}>
-                                    <option value="PROGRAMADO">PROGRAMADO</option>
-                                    <option value="EJECUTADO">EJECUTADO</option>
-                                    <option value="CANCELADO">CANCELADO</option>
-                                </select>
+                                <label>Estado (Automatizado)</label>
+                                <input 
+                                    type="text" 
+                                    name="estadoPlan" 
+                                    readOnly 
+                                    value={form.estadoPlan} 
+                                    style={{ background: '#f8fafc', color: '#64748b', cursor: 'not-allowed' }} 
+                                />
                             </div>
                         </div>
                     </div>
@@ -456,20 +549,55 @@ const Planificacion = () => {
                         </div>
                         <div className="form-grid">
                             <div className="form-group">
-                                <label>Calle / Avenida / Jr.</label>
-                                <input type="text" name="calle" value={form.calle} onChange={handleChange} placeholder="Ej: Av. Arenales 456" required />
+                                <label>Calle / Avenida / Jr. <span style={{color: 'red'}}>*</span></label>
+                                <input 
+                                    type="text" 
+                                    className={formErrors.calle ? 'input-error' : ''} 
+                                    name="calle" 
+                                    value={form.calle} 
+                                    onChange={handleChange} 
+                                    placeholder="Ej: Av. Arenales 456" 
+                                    required 
+                                />
+                                {formErrors.calle && <span className="error-message">{formErrors.calle}</span>}
                             </div>
                             <div className="form-group">
-                                <label>Distrito</label>
-                                <input type="text" name="distrito" value={form.distrito} onChange={handleChange} placeholder="Ej: Miraflores" required />
+                                <label>Distrito <span style={{color: 'red'}}>*</span></label>
+                                <input 
+                                    type="text" 
+                                    className={formErrors.distrito ? 'input-error' : ''} 
+                                    name="distrito" 
+                                    value={form.distrito} 
+                                    onChange={handleChange} 
+                                    placeholder="Ej: Miraflores" 
+                                    required 
+                                />
+                                {formErrors.distrito && <span className="error-message">{formErrors.distrito}</span>}
                             </div>
                             <div className="form-group">
-                                <label>Provincia</label>
-                                <input type="text" name="provincia" value={form.provincia} onChange={handleChange} placeholder="Ej: Lima" required />
+                                <label>Provincia <span style={{color: 'red'}}>*</span></label>
+                                <input 
+                                    type="text" 
+                                    className={formErrors.provincia ? 'input-error' : ''} 
+                                    name="provincia" 
+                                    value={form.provincia} 
+                                    onChange={handleChange} 
+                                    placeholder="Ej: Lima" 
+                                    required 
+                                />
+                                {formErrors.provincia && <span className="error-message">{formErrors.provincia}</span>}
                             </div>
                             <div className="form-group">
                                 <label>Referencia</label>
-                                <input type="text" name="referencia" value={form.referencia} onChange={handleChange} placeholder="Ej: Frente al parque central" />
+                                <input 
+                                    type="text" 
+                                    className={formErrors.referencia ? 'input-error' : ''} 
+                                    name="referencia" 
+                                    value={form.referencia} 
+                                    onChange={handleChange} 
+                                    placeholder="Ej: Frente al parque central" 
+                                />
+                                {formErrors.referencia && <span className="error-message">{formErrors.referencia}</span>}
                             </div>
                         </div>
                     </div>
@@ -478,8 +606,9 @@ const Planificacion = () => {
                         <div className="card-badge">TECNICOS</div>
                         <div className="card-header">
                             <MdPeople size={22} className="card-icon" />
-                            <h2>Asignación de Técnicos (El primero seleccionado será LÍDER, los demás ASISTENTES)</h2>
+                            <h2>Asignación de Técnicos <span style={{color: 'red'}}>*</span> (El primero seleccionado será LÍDER, los demás ASISTENTES)</h2>
                         </div>
+                        {formErrors.tecnicos && <span className="error-message" style={{ display: 'block', marginBottom: '15px' }}>{formErrors.tecnicos}</span>}
                         <div className="technicians-grid">
                             {tecnicos.length === 0 ? (
                                 <p style={{ fontSize: '14px', color: '#64748b' }}>No hay técnicos disponibles. Registre algunos en la sección Técnicos primero.</p>
