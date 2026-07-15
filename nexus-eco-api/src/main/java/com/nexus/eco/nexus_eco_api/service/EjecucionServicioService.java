@@ -26,6 +26,9 @@ public class EjecucionServicioService {
     @Autowired
     private OrdenServicioRepository ordenServicioRepository;
 
+    @Autowired
+    private com.nexus.eco.nexus_eco_api.repository.sqlserver.OrdenTrabajoRepository ordenTrabajoRepository;
+
     public List<EjecucionServicio> findAll() {
         return repository.findAll();
     }
@@ -47,6 +50,13 @@ public class EjecucionServicioService {
                     ordenServicioRepository.findById(ps.getOrdenServicio().getIdOrdenServicio()).ifPresent(os -> {
                         os.setEstadoOrden("EJECUTADA");
                         ordenServicioRepository.save(os);
+                        
+                        // Propagate state to OrdenTrabajo -> COMPLETADO
+                        ordenTrabajoRepository.findByOrdenServicioIdOrdenServicio(os.getIdOrdenServicio())
+                            .forEach(ot -> {
+                                ot.setEstadoOt("COMPLETADO");
+                                ordenTrabajoRepository.save(ot);
+                            });
                     });
                 }
             });
@@ -66,6 +76,13 @@ public class EjecucionServicioService {
                         ordenServicioRepository.findById(ps.getOrdenServicio().getIdOrdenServicio()).ifPresent(os -> {
                             os.setEstadoOrden("PLANIFICADA");
                             ordenServicioRepository.save(os);
+                            
+                            // Revert state of OrdenTrabajo back to EN_PROCESO
+                            ordenTrabajoRepository.findByOrdenServicioIdOrdenServicio(os.getIdOrdenServicio())
+                                .forEach(ot -> {
+                                    ot.setEstadoOt("EN_PROCESO");
+                                    ordenTrabajoRepository.save(ot);
+                                });
                         });
                     }
                 });

@@ -13,9 +13,21 @@ import {
 } from '../api/api';
 import './Servicios.css';
 
+const formatOS = (id) => `OS-2026-${String(id).padStart(4, '0')}`;
+
 const Servicios = () => {
     const [view, setView] = useState('list'); // 'list' or 'form'
     const [ordenes, setOrdenes] = useState([]);
+    
+    // Filters state
+    const [searchQuery, setSearchQuery] = useState('');
+    const [statusFilter, setStatusFilter] = useState('ALL');
+    const [minAmount, setMinAmount] = useState('');
+    const [maxAmount, setMaxAmount] = useState('');
+    const [startDate, setStartDate] = useState('');
+    const [endDate, setEndDate] = useState('');
+    const [clientFilter, setClientFilter] = useState('ALL');
+    const [filterClientes, setFilterClientes] = useState([]);
     
     // Dropdown Data
     const [clientes, setClientes] = useState([]);
@@ -42,13 +54,32 @@ const Servicios = () => {
     const [selectedTipo, setSelectedTipo] = useState('');
     const [cantidadSelected, setCantidadSelected] = useState(1);
 
+    // Searchable dropdown states
+    const [clientSearch, setClientSearch] = useState('');
+    const [showClientDropdown, setShowClientDropdown] = useState(false);
+    const [serviceSearch, setServiceSearch] = useState('');
+    const [showServiceDropdown, setShowServiceDropdown] = useState(false);
+
+    // Form errors state
+    const [formErrors, setFormErrors] = useState({});
+
     useEffect(() => {
         if (view === 'list') {
             fetchOrdenes();
+            fetchFilterClientes();
         } else {
             fetchFormData();
         }
     }, [view]);
+
+    const fetchFilterClientes = async () => {
+        try {
+            const res = await getClientes();
+            setFilterClientes(res.data);
+        } catch (error) {
+            console.error("Error fetching filter clients", error);
+        }
+    };
 
     const fetchOrdenes = async () => {
         try {
@@ -69,13 +100,25 @@ const Servicios = () => {
                 getEmpleados(),
                 getTiposServicio()
             ]);
-            setClientes(resClientes.data.filter(c => c.estado === 'ACTIVO'));
+            
+            // Sort clients from most recent to oldest (descending by idCliente)
+            const sortedClientes = resClientes.data.filter(c => c.estado === 'ACTIVO')
+                .sort((a, b) => b.idCliente - a.idCliente);
+                
+            setClientes(sortedClientes);
             setEmpleados(resEmpleados.data);
             setTiposServicio(resTipos.data);
             
-            if (resClientes.data.length > 0) setSolicitud(s => ({ ...s, idCliente: resClientes.data[0].idCliente }));
-            if (resEmpleados.data.length > 0) setSolicitud(s => ({ ...s, idEmpleado: resEmpleados.data[0].idEmpleado }));
-            if (resTipos.data.length > 0) setSelectedTipo(resTipos.data[0].idTipoServicio);
+            // Keep searchable inputs empty by default so they display the placeholder guide text
+            setSolicitud(s => ({ ...s, idCliente: '' }));
+            setClientSearch('');
+            
+            if (resEmpleados.data.length > 0) {
+                setSolicitud(s => ({ ...s, idEmpleado: resEmpleados.data[0].idEmpleado }));
+            }
+            
+            setSelectedTipo('');
+            setServiceSearch('');
             
         } catch (error) {
             console.error("Error fetching form data", error);
@@ -84,6 +127,285 @@ const Servicios = () => {
 
     const formatCurrency = (amount) => {
         return new Intl.NumberFormat('es-PE', { style: 'currency', currency: 'PEN' }).format(amount);
+    };
+
+    const getClientStats = () => {
+        if (!solicitud.idCliente) {
+            return {
+                lastService: 'Sin seleccionar',
+                frequency: 'Sin seleccionar',
+                comment: 'Seleccione un cliente para ver su contacto e información.'
+            };
+        }
+        
+        const selectedClientObj = clientes.find(c => c.idCliente.toString() === solicitud.idCliente.toString());
+        const clientOrders = ordenes.filter(o => o.solicitudServicio?.cliente?.idCliente?.toString() === solicitud.idCliente.toString());
+        
+        let lastService = 'Ninguno';
+        if (clientOrders.length > 0) {
+            const sortedClientOrders = [...clientOrders].sort((a, b) => new Date(b.fechaOrden) - new Date(a.fechaOrden));
+            lastService = new Date(sortedClientOrders[0].fechaOrden).toLocaleDateString('es-PE', { day: 'numeric', month: 'short', year: 'numeric' });
+        }
+        
+        const orderCount = clientOrders.length;
+        let frequency = 'Nuevo Cliente';
+        if (orderCount > 0 && orderCount <= 2) frequency = 'Ocasional';
+        else if (orderCount > 2 && orderCount <= 5) frequency = 'Frecuente';
+        else if (orderCount > 5) frequency = 'VIP (Recurrente)';
+        
+        const contactObj = selectedClientObj?.contactos?.[0] || {};
+        const comment = contactObj.nombreCon 
+            ? `Contacto: ${contactObj.nombreCon} (${contactObj.cargo || 'Contacto'}) - Cel: ${contactObj.telefonoCon || 'Sin número'}`
+            : 'Este cliente aún no tiene un contacto principal registrado.';
+            
+        return { lastService, frequency, comment };
+    };
+    
+    const clientStats = getClientStats();
+
+    const handleGenerarPDFOrden = async (ord) => {
+        try {
+            const sol = ord.solicitudServicio;
+            const cliente = sol?.cliente;
+            const empleado = sol?.empleado;
+            const detalles = ord.detalles || [];
+            
+            const htmlContent = `
+                <html>
+                <head>
+                    <title>Orden de Servicio - ${formatOS(ord.idOrdenServicio)}</title>
+                    <style>
+                        body {
+                            font-family: 'Segoe UI', Arial, sans-serif;
+                            color: #1e293b;
+                            line-height: 1.6;
+                            padding: 40px;
+                            background: white;
+                        }
+                        .header-table {
+                            width: 100%;
+                            border-bottom: 3px solid #0b7a75;
+                            padding-bottom: 20px;
+                            margin-bottom: 30px;
+                        }
+                        .company-name {
+                            font-size: 26px;
+                            font-weight: 800;
+                            color: #003b5c;
+                        }
+                        .company-sub {
+                            font-size: 11px;
+                            font-weight: 600;
+                            color: #64748b;
+                            text-transform: uppercase;
+                            letter-spacing: 1px;
+                        }
+                        .report-title {
+                            text-align: right;
+                            font-size: 20px;
+                            font-weight: 700;
+                            color: #0b7a75;
+                            letter-spacing: -0.5px;
+                        }
+                        .report-code {
+                            text-align: right;
+                            font-size: 13px;
+                            font-weight: 700;
+                            color: #334155;
+                            margin-top: 4px;
+                        }
+                        .section-title {
+                            font-size: 13px;
+                            font-weight: 800;
+                            color: #003b5c;
+                            background: #f8fafc;
+                            padding: 8px 12px;
+                            margin-top: 25px;
+                            margin-bottom: 12px;
+                            border-left: 4px solid #0b7a75;
+                            text-transform: uppercase;
+                        }
+                        .grid {
+                            display: grid;
+                            grid-template-columns: 1fr 1fr;
+                            gap: 10px;
+                            margin-bottom: 15px;
+                        }
+                        .field {
+                            font-size: 12px;
+                        }
+                        .label {
+                            font-weight: 700;
+                            color: #475569;
+                        }
+                        table.details-table {
+                            width: 100%;
+                            border-collapse: collapse;
+                            margin-top: 15px;
+                            font-size: 12px;
+                        }
+                        table.details-table th {
+                            background: #003b5c;
+                            color: white;
+                            padding: 8px 10px;
+                            text-align: left;
+                            font-weight: 700;
+                        }
+                        table.details-table td {
+                            padding: 8px 10px;
+                            border-bottom: 1px solid #e2e8f0;
+                        }
+                        .total-section {
+                            text-align: right;
+                            margin-top: 20px;
+                            font-size: 15px;
+                            font-weight: 700;
+                            color: #003b5c;
+                        }
+                        .terms {
+                            margin-top: 35px;
+                            font-size: 10px;
+                            color: #64748b;
+                            border-top: 1px solid #e2e8f0;
+                            padding-top: 15px;
+                        }
+                        .signature-container {
+                            margin-top: 60px;
+                            display: flex;
+                            justify-content: space-around;
+                            page-break-inside: avoid;
+                            break-inside: avoid;
+                        }
+                        .signature-box {
+                            width: 200px;
+                            border-top: 1px solid #cbd5e1;
+                            text-align: center;
+                            padding-top: 8px;
+                            font-size: 11px;
+                            color: #475569;
+                            page-break-inside: avoid;
+                            break-inside: avoid;
+                        }
+                        .footer {
+                            margin-top: 50px;
+                            text-align: center;
+                            font-size: 10px;
+                            color: #94a3b8;
+                            border-top: 1px solid #f1f5f9;
+                            padding-top: 15px;
+                        }
+                    </style>
+                </head>
+                <body>
+                    <table class="header-table">
+                        <tr>
+                            <td>
+                                <div class="company-name">Econex<span style="color: #0b7a75">us</span></div>
+                                <div class="company-sub">Soluciones Ambientales e Higiene Integrada</div>
+                            </td>
+                            <td>
+                                <div class="report-title">ORDEN DE SERVICIO / CONTRATO COMERCIAL</div>
+                                <div class="report-code">Código: ${formatOS(ord.idOrdenServicio)}</div>
+                            </td>
+                        </tr>
+                    </table>
+
+                    <div class="section-title">1. Datos del Cliente</div>
+                    <div class="grid">
+                        <div class="field"><span class="label">Razón Social:</span> ${cliente?.razonSocial || '-'}</div>
+                        <div class="field"><span class="label">RUC:</span> ${cliente?.ruc || '-'}</div>
+                        <div class="field"><span class="label">Dirección Fiscal:</span> ${cliente?.direccion || 'No registrada'}</div>
+                        <div class="field"><span class="label">Email Cliente:</span> ${cliente?.emailCliente || '-'}</div>
+                        <div class="field"><span class="label">Contacto Principal:</span> ${cliente?.contactos?.[0]?.nombreCon || 'No registrado'}</div>
+                        <div class="field"><span class="label">Teléfono Contacto:</span> ${cliente?.contactos?.[0]?.telefonoCon || '-'}</div>
+                    </div>
+
+                    <div class="section-title">2. Datos de la Operación</div>
+                    <div class="grid">
+                        <div class="field"><span class="label">Fecha de Emisión:</span> ${new Date(ord.fechaOrden).toLocaleDateString()}</div>
+                        <div class="field"><span class="label">Ejecutivo a Cargo:</span> ${empleado?.nombreEmp} ${empleado?.apellidoEmp} (${empleado?.cargoEmp || 'Asesor'})</div>
+                        <div class="field"><span class="label">Estado del Contrato:</span> ${ord.estadoOrden || 'PENDIENTE'}</div>
+                    </div>
+
+                    <div class="section-title">3. Detalle de Servicios Contratados</div>
+                    <table class="details-table">
+                        <thead>
+                            <tr>
+                                <th>Servicio</th>
+                                <th style="text-align: center;">Cantidad</th>
+                                <th style="text-align: right;">Precio Unitario</th>
+                                <th style="text-align: right;">Subtotal</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${detalles.length === 0 ? `
+                                <tr><td colSpan="4" style="text-align: center; color: #64748b;">No hay servicios detallados en esta orden.</td></tr>
+                            ` : detalles.map(d => `
+                                <tr>
+                                    <td>${d.tipoServicio?.nombreServicio || 'Servicio'}</td>
+                                    <td style="text-align: center;">${d.cantidad}</td>
+                                    <td style="text-align: right;">${formatCurrency(d.precioUnitario)}</td>
+                                    <td style="text-align: right;">${formatCurrency(d.subtotal)}</td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+
+                    <div class="total-section">
+                        Monto Total Contratado: ${formatCurrency(ord.montoTotal)}
+                    </div>
+
+                    <div class="terms">
+                        <strong>Condiciones Comerciales y de Servicio:</strong>
+                        <p style="margin: 4px 0 0 0;">1. El cliente se compromete a facilitar el acceso de las cuadrillas técnicas en las fechas planificadas.<br>
+                        2. Los insumos y químicos utilizados cumplen con los estándares autorizados por DIGESA.<br>
+                        3. Cualquier reprogramación de visitas debe realizarse con un mínimo de 24 horas de anticipación.</p>
+                    </div>
+
+                    <div class="signature-container">
+                        <div class="signature-box">
+                            <br><br><br>
+                            <strong>Econexus S.A.C.</strong><br>
+                            Emisor Autorizado
+                        </div>
+                        <div class="signature-box">
+                            <br><br><br>
+                            <strong>Aceptación del Cliente</strong><br>
+                            Firma del Representante
+                        </div>
+                    </div>
+
+                    <div class="footer">
+                        <p>© 2026 Econexus Soluciones Ambientales. Todos los derechos reservados. Este documento representa un contrato comercial digital de servicios.</p>
+                    </div>
+                </body>
+                </html>
+            `;
+
+            // Save original styles to prevent overflow clipping
+            const originalBodyOverflow = document.body.style.overflow;
+            const originalHtmlOverflow = document.documentElement.style.overflow;
+            document.body.style.overflow = 'visible';
+            document.documentElement.style.overflow = 'visible';
+            
+            const opt = {
+                margin:       [10, 10, 10, 10],
+                filename:     `Contrato_Econexus_${formatOS(ord.idOrdenServicio)}.pdf`,
+                image:        { type: 'jpeg', quality: 0.98 },
+                html2canvas:  { scale: 2, useCORS: true, logging: false },
+                jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
+            };
+            
+            try {
+                await html2pdf().set(opt).from(htmlContent).save();
+            } finally {
+                document.body.style.overflow = originalBodyOverflow;
+                document.documentElement.style.overflow = originalHtmlOverflow;
+            }
+        } catch (error) {
+            console.error("Error al generar PDF de la Orden", error);
+            alert("No se pudo generar el contrato en PDF.");
+        }
     };
 
     const handleAddServicio = () => {
@@ -97,6 +419,7 @@ const Servicios = () => {
                 subtotal: cantidadSelected * tipo.precioBase
             }]);
             setCantidadSelected(1);
+            setFormErrors(prev => ({ ...prev, servicios: null }));
         }
     };
 
@@ -114,13 +437,20 @@ const Servicios = () => {
         setSelectedOrden(null);
         setEditingId(null);
         setServicios([]);
+        
         setSolicitud({
-            idCliente: clientes.length > 0 ? clientes[0].idCliente : '',
+            idCliente: '',
             fecha: new Date().toISOString().split('T')[0],
             idEmpleado: empleados.length > 0 ? empleados[0].idEmpleado : '',
             estado: 'PENDIENTE',
             descripcion: ''
         });
+        
+        setClientSearch('');
+        setSelectedTipo('');
+        setServiceSearch('');
+        setFormErrors({});
+        
         setView('form');
     };
 
@@ -146,6 +476,16 @@ const Servicios = () => {
             estado: ord.estadoOrden || 'PENDIENTE',
             descripcion: sol.descripcionSol || ''
         });
+        
+        if (sol.cliente) {
+            setClientSearch(`${sol.cliente.razonSocial} - ${sol.cliente.ruc}`);
+        } else {
+            setClientSearch('');
+        }
+        
+        setSelectedTipo('');
+        setServiceSearch('');
+
         setView('form');
     };
 
@@ -163,10 +503,28 @@ const Servicios = () => {
     };
 
     const handleGenerarOrden = async () => {
-        if (!solicitud.idCliente || !solicitud.idEmpleado || servicios.length === 0) {
-            alert("Debe seleccionar un cliente, un empleado y agregar al menos un servicio.");
+        const errors = {};
+        if (!solicitud.idCliente) {
+            errors.idCliente = "Debe seleccionar un cliente para generar la orden.";
+        }
+        if (!solicitud.fecha) {
+            errors.fecha = "La fecha de solicitud es obligatoria.";
+        }
+        if (!solicitud.idEmpleado) {
+            errors.idEmpleado = "Debe seleccionar un empleado que atienda la solicitud.";
+        }
+        if (/[<>]/.test(solicitud.descripcion || '')) {
+            errors.descripcion = "La descripción no puede contener caracteres HTML (< o >).";
+        }
+        if (servicios.length === 0) {
+            errors.servicios = "Debe agregar al menos un servicio contratado a la lista antes de generar la orden.";
+        }
+
+        if (Object.keys(errors).length > 0) {
+            setFormErrors(errors);
             return;
         }
+        setFormErrors({});
 
         try {
             // 1. Payload
@@ -216,6 +574,37 @@ const Servicios = () => {
     };
 
     if (view === 'list') {
+        const filteredOrdenes = ordenes.filter(ord => {
+            const clientName = (ord.solicitudServicio?.cliente?.razonSocial || '').toLowerCase();
+            const matchesSearch = clientName.includes(searchQuery.toLowerCase()) || 
+                                  String(ord.idOrdenServicio).includes(searchQuery);
+            const matchesStatus = statusFilter === 'ALL' || ord.estadoOrden === statusFilter;
+            
+            const total = ord.montoTotal || 0;
+            const matchesMin = minAmount === '' || total >= parseFloat(minAmount);
+            const matchesMax = maxAmount === '' || total <= parseFloat(maxAmount);
+            
+            // Date Filter
+            const ordDateStr = ord.fechaOrden ? ord.fechaOrden.split('T')[0] : '';
+            const matchesStartDate = !startDate || ordDateStr >= startDate;
+            const matchesEndDate = !endDate || ordDateStr <= endDate;
+
+            // Client Dropdown Filter
+            const matchesClient = clientFilter === 'ALL' || (ord.solicitudServicio?.cliente?.idCliente?.toString() === clientFilter);
+            
+            return matchesSearch && matchesStatus && matchesMin && matchesMax && matchesStartDate && matchesEndDate && matchesClient;
+        });
+
+        const handleClearFilters = () => {
+            setSearchQuery('');
+            setStatusFilter('ALL');
+            setMinAmount('');
+            setMaxAmount('');
+            setStartDate('');
+            setEndDate('');
+            setClientFilter('ALL');
+        };
+
         return (
             <div className="servicios-page">
                 <div className="breadcrumb">GESTIÓN / SERVICIOS</div>
@@ -230,6 +619,90 @@ const Servicios = () => {
                             <MdAddIcon size={18} /> Nueva Solicitud
                         </button>
                     </div>
+                </div>
+
+                <div className="filters-bar">
+                    <div className="filter-group search">
+                        <span className="filter-label">Buscar Orden</span>
+                        <input 
+                            type="text" 
+                            className="filter-input" 
+                            placeholder="Buscar por cliente o ID de orden..." 
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                        />
+                    </div>
+                    <div className="filter-group">
+                        <span className="filter-label">Cliente</span>
+                        <select 
+                            className="filter-select" 
+                            value={clientFilter}
+                            onChange={(e) => setClientFilter(e.target.value)}
+                        >
+                            <option value="ALL">Todos los clientes</option>
+                            {filterClientes.map(c => (
+                                <option key={c.idCliente} value={c.idCliente}>{c.razonSocial}</option>
+                            ))}
+                        </select>
+                    </div>
+                    <div className="filter-group">
+                        <span className="filter-label">Estado</span>
+                        <select 
+                            className="filter-select" 
+                            value={statusFilter}
+                            onChange={(e) => setStatusFilter(e.target.value)}
+                        >
+                            <option value="ALL">Todos los estados</option>
+                            <option value="PENDIENTE">PENDIENTE</option>
+                            <option value="EN_PROCESO">EN PROCESO</option>
+                            <option value="COMPLETADO">COMPLETADO</option>
+                        </select>
+                    </div>
+                    <div className="filter-group">
+                        <span className="filter-label">Desde</span>
+                        <input 
+                            type="date" 
+                            className="filter-input" 
+                            value={startDate}
+                            onChange={(e) => setStartDate(e.target.value)}
+                        />
+                    </div>
+                    <div className="filter-group">
+                        <span className="filter-label">Hasta</span>
+                        <input 
+                            type="date" 
+                            className="filter-input" 
+                            value={endDate}
+                            onChange={(e) => setEndDate(e.target.value)}
+                        />
+                    </div>
+                    <div className="filter-group" style={{ flex: 1, minWidth: '120px' }}>
+                        <span className="filter-label">Monto Mín</span>
+                        <input 
+                            type="number" 
+                            className="filter-input" 
+                            placeholder="S/. Min" 
+                            value={minAmount}
+                            onChange={(e) => setMinAmount(e.target.value)}
+                        />
+                    </div>
+                    <div className="filter-group" style={{ flex: 1, minWidth: '120px' }}>
+                        <span className="filter-label">Monto Máx</span>
+                        <input 
+                            type="number" 
+                            className="filter-input" 
+                            placeholder="S/. Max" 
+                            value={maxAmount}
+                            onChange={(e) => setMaxAmount(e.target.value)}
+                        />
+                    </div>
+                    {(searchQuery || statusFilter !== 'ALL' || minAmount || maxAmount || startDate || endDate || clientFilter !== 'ALL') && (
+                        <div className="filter-group action">
+                            <button className="btn-filter-clear" onClick={handleClearFilters}>
+                                Limpiar
+                            </button>
+                        </div>
+                    )}
                 </div>
 
                 <div className="table-container">
@@ -247,10 +720,10 @@ const Servicios = () => {
                         <tbody>
                             {loading ? (
                                 <tr><td colSpan="6" style={{ textAlign: 'center' }}>Cargando...</td></tr>
-                            ) : ordenes.length === 0 ? (
-                                <tr><td colSpan="6" style={{ textAlign: 'center' }}>No hay órdenes registradas.</td></tr>
+                            ) : filteredOrdenes.length === 0 ? (
+                                <tr><td colSpan="6" style={{ textAlign: 'center' }}>No se encontraron órdenes con los filtros aplicados.</td></tr>
                             ) : (
-                                ordenes.map(ord => {
+                                filteredOrdenes.map(ord => {
                                     const canEditDelete = ord.estadoOrden === 'PENDIENTE' || ord.estadoOrden === 'EN_PROCESO';
                                     return (
                                         <tr key={ord.idOrdenServicio}>
@@ -264,12 +737,17 @@ const Servicios = () => {
                                                 </span>
                                             </td>
                                             <td>
-                                                <button className="btn-table-details" onClick={() => handleOpenDetails(ord)} title="Ver Detalles">
-                                                    <MdEyeIcon size={16} /> Detalles
+                                                <button className="btn-table-details" onClick={() => handleOpenDetails(ord)} title="Ver Detalles" style={{ marginRight: '6px' }}>
+                                                    <MdEyeIcon size={16} style={{ verticalAlign: 'middle', marginRight: '4px' }} /> Detalles
                                                 </button>
+                                                {ord.estadoOrden === 'PENDIENTE' && (
+                                                    <button className="btn-table-pdf" onClick={() => handleGenerarPDFOrden(ord)} style={{ padding: '6px 12px', background: '#ecfdf5', color: '#059669', border: '1px solid #a7f3d0', borderRadius: '4px', cursor: 'pointer', fontSize: '12px', fontWeight: '600', display: 'inline-flex', alignItems: 'center', gap: '4px', marginRight: '6px' }} title="Descargar Contrato PDF">
+                                                        <MdPrint size={14} /> PDF
+                                                    </button>
+                                                )}
                                                 {canEditDelete && (
                                                     <>
-                                                        <button className="btn-table-edit" onClick={() => handleEdit(ord)}>Editar</button>
+                                                        <button className="btn-table-edit" onClick={() => handleEdit(ord)} style={{ marginRight: '6px' }}>Editar</button>
                                                         <button className="btn-table-delete" onClick={() => handleDelete(ord.idOrdenServicio)}>Borrar</button>
                                                     </>
                                                 )}
@@ -331,6 +809,16 @@ const Servicios = () => {
                                     </table>
                                 </div>
                             </div>
+                            <div className="modal-footer" style={{ borderTop: '1px solid #e2e8f0', padding: '15px 0 0 0', marginTop: '20px', display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
+                                {selectedOrden.estadoOrden === 'PENDIENTE' && (
+                                    <button className="btn-table-pdf" onClick={() => handleGenerarPDFOrden(selectedOrden)} style={{ padding: '8px 16px', background: '#ecfdf5', color: '#059669', border: '1px solid #a7f3d0', borderRadius: '4px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 'bold' }}>
+                                        <MdPrint size={18} /> Descargar Contrato PDF
+                                    </button>
+                                )}
+                                <button className="btn-cancelar" onClick={() => setShowDetailsModal(false)} style={{ background: '#f1f5f9', color: '#475569', border: '1px solid #cbd5e1', padding: '8px 16px', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}>
+                                    Cerrar
+                                </button>
+                            </div>
                         </div>
                     </div>
                 )}
@@ -368,47 +856,111 @@ const Servicios = () => {
                         </div>
                         
                         <div className="form-group mb-20">
-                            <label>Cliente</label>
-                            <select value={solicitud.idCliente} onChange={(e) => setSolicitud({...solicitud, idCliente: e.target.value})}>
-                                {clientes.map(c => (
-                                    <option key={c.idCliente} value={c.idCliente}>{c.razonSocial} - {c.ruc}</option>
-                                ))}
-                            </select>
+                            <label>Cliente <span style={{color: 'red'}}>*</span></label>
+                            <div className="searchable-dropdown-wrapper" style={{ position: 'relative' }}>
+                                <input 
+                                    type="text"
+                                    className={formErrors.idCliente ? 'input-error' : ''}
+                                    placeholder="Escribe para buscar cliente..."
+                                    value={clientSearch}
+                                    onFocus={() => setShowClientDropdown(true)}
+                                    onChange={(e) => {
+                                        setClientSearch(e.target.value);
+                                        const matched = clientes.find(c => `${c.razonSocial} - ${c.ruc}` === e.target.value);
+                                        setSolicitud(s => ({ ...s, idCliente: matched ? matched.idCliente.toString() : '' }));
+                                        setFormErrors(prev => ({ ...prev, idCliente: null }));
+                                    }}
+                                    onBlur={() => {
+                                        setTimeout(() => setShowClientDropdown(false), 200);
+                                    }}
+                                />
+                                {formErrors.idCliente && <span className="error-message">{formErrors.idCliente}</span>}
+                                {showClientDropdown && (
+                                    <div className="dropdown-options-list">
+                                        {clientes.filter(c => 
+                                            `${c.razonSocial} ${c.ruc}`.toLowerCase().includes(clientSearch.toLowerCase())
+                                        ).map(c => (
+                                            <div 
+                                                key={c.idCliente}
+                                                className="dropdown-option-item"
+                                                onMouseDown={() => {
+                                                    setClientSearch(`${c.razonSocial} - ${c.ruc}`);
+                                                    setSolicitud(s => ({ ...s, idCliente: c.idCliente.toString() }));
+                                                    setShowClientDropdown(false);
+                                                }}
+                                            >
+                                                <div style={{ fontWeight: '500', color: '#1e293b' }}>{c.razonSocial}</div>
+                                                <div style={{ fontSize: '12px', color: '#64748b' }}>RUC: {c.ruc}</div>
+                                            </div>
+                                        ))}
+                                        {clientes.filter(c => 
+                                            `${c.razonSocial} ${c.ruc}`.toLowerCase().includes(clientSearch.toLowerCase())
+                                        ).length === 0 && (
+                                            <div style={{ padding: '10px 12px', color: '#64748b', fontStyle: 'italic' }}>
+                                                No se encontraron clientes
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+                            </div>
                         </div>
 
                         <div className="form-grid">
                             <div className="form-group">
-                                <label>Fecha de solicitud</label>
+                                <label>Fecha de solicitud <span style={{color: 'red'}}>*</span></label>
                                 <div className="date-input-wrapper">
-                                    <input type="date" value={solicitud.fecha} onChange={(e) => setSolicitud({...solicitud, fecha: e.target.value})} />
+                                    <input 
+                                        type="date" 
+                                        className={formErrors.fecha ? 'input-error' : ''} 
+                                        value={solicitud.fecha} 
+                                        onChange={(e) => {
+                                            setSolicitud({...solicitud, fecha: e.target.value});
+                                            setFormErrors(prev => ({ ...prev, fecha: null }));
+                                        }} 
+                                    />
                                 </div>
+                                {formErrors.fecha && <span className="error-message">{formErrors.fecha}</span>}
                             </div>
                             <div className="form-group">
-                                <label>Empleado que atiende</label>
-                                <select value={solicitud.idEmpleado} onChange={(e) => setSolicitud({...solicitud, idEmpleado: e.target.value})}>
+                                <label>Empleado que atiende <span style={{color: 'red'}}>*</span></label>
+                                <select 
+                                    className={formErrors.idEmpleado ? 'input-error' : ''} 
+                                    value={solicitud.idEmpleado} 
+                                    onChange={(e) => {
+                                        setSolicitud({...solicitud, idEmpleado: e.target.value});
+                                        setFormErrors(prev => ({ ...prev, idEmpleado: null }));
+                                    }}
+                                >
+                                    <option value="">-- Seleccionar Empleado --</option>
                                     {empleados.map(emp => (
                                         <option key={emp.idEmpleado} value={emp.idEmpleado}>{emp.nombreEmp} {emp.apellidoEmp}</option>
                                     ))}
                                 </select>
+                                {formErrors.idEmpleado && <span className="error-message">{formErrors.idEmpleado}</span>}
                             </div>
                         </div>
 
                         <div className="form-group mb-20">
-                            <label>Estado de la Orden</label>
-                            <select value={solicitud.estado} onChange={(e) => setSolicitud({...solicitud, estado: e.target.value})}>
-                                <option value="PENDIENTE">PENDIENTE</option>
-                                <option value="EN_PROCESO">EN PROCESO</option>
-                                <option value="COMPLETADO">COMPLETADO</option>
-                            </select>
+                            <label>Estado de la Orden (Automatizado)</label>
+                            <input 
+                                type="text" 
+                                readOnly 
+                                value={solicitud.estado} 
+                                style={{ background: '#f8fafc', color: '#64748b', cursor: 'not-allowed' }} 
+                            />
                         </div>
 
                         <div className="form-group">
                             <label>Descripción del servicio solicitado</label>
                             <textarea 
+                                className={formErrors.descripcion ? 'input-error' : ''}
                                 placeholder="Detalle los requerimientos específicos del cliente..." 
                                 rows="3"
                                 value={solicitud.descripcion}
-                                onChange={(e) => setSolicitud({...solicitud, descripcion: e.target.value})}
+                                onChange={(e) => {
+                                    setSolicitud({...solicitud, descripcion: e.target.value});
+                                    setFormErrors(prev => ({ ...prev, descripcion: null }));
+                                }}
                                 style={{
                                     width: '100%',
                                     padding: '10px 12px',
@@ -420,6 +972,7 @@ const Servicios = () => {
                                     resize: 'vertical'
                                 }}
                             ></textarea>
+                            {formErrors.descripcion && <span className="error-message">{formErrors.descripcion}</span>}
                         </div>
                     </div>
 
@@ -431,11 +984,49 @@ const Servicios = () => {
                         <div className="form-grid" style={{alignItems: 'end'}}>
                             <div className="form-group">
                                 <label>Tipo de Servicio</label>
-                                <select value={selectedTipo} onChange={(e) => setSelectedTipo(e.target.value)}>
-                                    {tiposServicio.map(ts => (
-                                        <option key={ts.idTipoServicio} value={ts.idTipoServicio}>{ts.nombreServicio} - {formatCurrency(ts.precioBase)}</option>
-                                    ))}
-                                </select>
+                                <div className="searchable-dropdown-wrapper" style={{ position: 'relative' }}>
+                                    <input 
+                                        type="text"
+                                        placeholder="Escribe para buscar servicio..."
+                                        value={serviceSearch}
+                                        onFocus={() => setShowServiceDropdown(true)}
+                                        onChange={(e) => {
+                                            setServiceSearch(e.target.value);
+                                            const matched = tiposServicio.find(ts => `${ts.nombreServicio} - ${formatCurrency(ts.precioBase)}` === e.target.value);
+                                            setSelectedTipo(matched ? matched.idTipoServicio.toString() : '');
+                                        }}
+                                        onBlur={() => {
+                                            setTimeout(() => setShowServiceDropdown(false), 200);
+                                        }}
+                                    />
+                                    {showServiceDropdown && (
+                                        <div className="dropdown-options-list">
+                                            {tiposServicio.filter(ts => 
+                                                ts.nombreServicio.toLowerCase().includes(serviceSearch.toLowerCase())
+                                            ).map(ts => (
+                                                <div 
+                                                    key={ts.idTipoServicio}
+                                                    className="dropdown-option-item"
+                                                    onMouseDown={() => {
+                                                        setServiceSearch(`${ts.nombreServicio} - ${formatCurrency(ts.precioBase)}`);
+                                                        setSelectedTipo(ts.idTipoServicio.toString());
+                                                        setShowServiceDropdown(false);
+                                                    }}
+                                                >
+                                                    <div style={{ fontWeight: '500', color: '#1e293b' }}>{ts.nombreServicio}</div>
+                                                    <div style={{ fontSize: '12px', color: '#0b7a75', fontWeight: 'bold' }}>{formatCurrency(ts.precioBase)}</div>
+                                                </div>
+                                            ))}
+                                            {tiposServicio.filter(ts => 
+                                                ts.nombreServicio.toLowerCase().includes(serviceSearch.toLowerCase())
+                                            ).length === 0 && (
+                                                <div style={{ padding: '10px 12px', color: '#64748b', fontStyle: 'italic' }}>
+                                                    No se encontraron servicios
+                                                </div>
+                                            )}
+                                        </div>
+                                    )}
+                                </div>
                             </div>
                             <div className="form-group" style={{display: 'flex', gap: '10px'}}>
                                 <div style={{flex: 1}}>
@@ -449,6 +1040,7 @@ const Servicios = () => {
                         </div>
                     </div>
 
+                    {formErrors.servicios && <span className="error-message" style={{ display: 'block', marginBottom: '15px' }}>{formErrors.servicios}</span>}
                     <div className="table-card">
                         <div className="table-header-bg"></div>
                         <table className="servicios-table">
@@ -514,7 +1106,7 @@ const Servicios = () => {
                             </div>
                             <div>
                                 <div className="stat-label">Último Servicio</div>
-                                <div className="stat-value">15 Sep 2023</div>
+                                <div className="stat-value">{clientStats.lastService}</div>
                             </div>
                         </div>
 
@@ -524,12 +1116,12 @@ const Servicios = () => {
                             </div>
                             <div>
                                 <div className="stat-label">Frecuencia</div>
-                                <div className="stat-value">Mensual (VIP)</div>
+                                <div className="stat-value">{clientStats.frequency}</div>
                             </div>
                         </div>
 
                         <div className="stat-quote">
-                            "Cliente requiere acceso por zona de carga posterior después de las 18:00."
+                            "{clientStats.comment}"
                         </div>
                     </div>
                 </div>

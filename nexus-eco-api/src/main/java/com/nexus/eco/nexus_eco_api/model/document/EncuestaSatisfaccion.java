@@ -10,21 +10,13 @@ import java.time.LocalDateTime;
 public class EncuestaSatisfaccion {
     @Id
     private String id;
+    private String googleFormResponseId;
+    private String origen;
+    private LocalDateTime fechaRespuesta;
     private Integer idCliente;
     private Integer idEjecucionServicio;
-    private LocalDateTime fechaRespuesta;
-    
-    // Original mappings
-    private Integer puntuacionGeneral;
-    private Integer calidadServicio;
-    private Integer puntualidad;
-    private Integer profesionalismo;
-    private String comentarios;
-    private Boolean recomendaria;
-    private String origen;
-    private String googleFormResponseId;
 
-    // Google Form specific responses
+    // Google Form specific responses (In order of the form questions)
     private String nombreCliente;
     private String tipoServicioRecibido;
     private String facilidadProgramacion;
@@ -37,4 +29,12 @@ public class EncuestaSatisfaccion {
     private String dudasResueltas;
     private String recomendariaEmpresa;
     private String sugerenciasComentarios;
+
+    // Mapped / Calculated metrics
+    private Integer puntuacionGeneral;
+    private Integer calidadServicio;
+    private Integer puntualidad;
+    private Integer profesionalismo;
+    private Boolean recomendaria;
+    private String comentarios;
 }

@@ -9,6 +9,11 @@ const Tecnicos = () => {
     const [especialidades, setEspecialidades] = useState([]);
     const [loading, setLoading] = useState(false);
 
+    // Filters state
+    const [searchQuery, setSearchQuery] = useState('');
+    const [specFilter, setSpecFilter] = useState('ALL');
+    const [statusFilter, setStatusFilter] = useState('ALL');
+
     // Modal state for Tecnicos
     const [showTecnicoModal, setShowTecnicoModal] = useState(false);
     const [editingTecnicoId, setEditingTecnicoId] = useState(null);
@@ -186,6 +191,25 @@ const Tecnicos = () => {
         }
     };
 
+    const filteredTecnicos = tecnicos.filter(tec => {
+        const fullName = `${tec.nombreTec} ${tec.apellidoTec}`.toLowerCase();
+        const specName = (tec.especialidad?.nombreEspec || '').toLowerCase();
+        const matchesSearch = fullName.includes(searchQuery.toLowerCase()) || 
+                              specName.includes(searchQuery.toLowerCase()) ||
+                              tec.idTecnico.toString() === searchQuery;
+                              
+        const matchesSpec = specFilter === 'ALL' || (tec.especialidad && tec.especialidad.idEspecialidad.toString() === specFilter);
+        const matchesStatus = statusFilter === 'ALL' || tec.estadoTec === statusFilter;
+        
+        return matchesSearch && matchesSpec && matchesStatus;
+    });
+
+    const handleClearFilters = () => {
+        setSearchQuery('');
+        setSpecFilter('ALL');
+        setStatusFilter('ALL');
+    };
+
     return (
         <div className="tecnicos-page">
             <div className="breadcrumb">ADMINISTRACIÓN / TÉCNICOS Y ESPECIALIDADES</div>
@@ -224,45 +248,92 @@ const Tecnicos = () => {
             </div>
 
             {activeTab === 'tecnicos' ? (
-                <div className="table-container">
-                    <table className="tecnicos-table">
-                        <thead>
-                            <tr>
-                                <th>ID</th>
-                                <th>Nombres</th>
-                                <th>Apellidos</th>
-                                <th>Especialidad</th>
-                                <th>Estado</th>
-                                <th>Acciones</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {loading ? (
-                                <tr><td colSpan="6" style={{ textAlign: 'center' }}>Cargando...</td></tr>
-                            ) : tecnicos.length === 0 ? (
-                                <tr><td colSpan="6" style={{ textAlign: 'center' }}>No hay técnicos registrados.</td></tr>
-                            ) : (
-                                tecnicos.map(tec => (
-                                    <tr key={tec.idTecnico}>
-                                        <td>{tec.idTecnico}</td>
-                                        <td>{tec.nombreTec}</td>
-                                        <td>{tec.apellidoTec}</td>
-                                        <td>{tec.especialidad ? tec.especialidad.nombreEspec : 'Sin especialidad'}</td>
-                                        <td>
-                                            <span className={`status-badge status-${tec.estadoTec?.toLowerCase()}`}>
-                                                {tec.estadoTec}
-                                            </span>
-                                        </td>
-                                        <td>
-                                            <button className="btn-table-edit" onClick={() => handleOpenEditTecnico(tec)}>Editar</button>
-                                            <button className="btn-table-delete" onClick={() => handleDeleteTecnico(tec.idTecnico)}>Eliminar</button>
-                                        </td>
-                                    </tr>
-                                ))
-                            )}
-                        </tbody>
-                    </table>
-                </div>
+                <>
+                    <div className="filters-bar">
+                        <div className="filter-group search">
+                            <span className="filter-label">Buscar Técnico</span>
+                            <input 
+                                type="text" 
+                                className="filter-input" 
+                                placeholder="Buscar por nombre, especialidad o ID..." 
+                                value={searchQuery}
+                                onChange={(e) => setSearchQuery(e.target.value)}
+                            />
+                        </div>
+                        <div className="filter-group">
+                            <span className="filter-label">Especialidad</span>
+                            <select 
+                                className="filter-select" 
+                                value={specFilter}
+                                onChange={(e) => setSpecFilter(e.target.value)}
+                            >
+                                <option value="ALL">Todas las especialidades</option>
+                                {especialidades.map(esp => (
+                                    <option key={esp.idEspecialidad} value={esp.idEspecialidad}>{esp.nombreEspec}</option>
+                                ))}
+                            </select>
+                        </div>
+                        <div className="filter-group">
+                            <span className="filter-label">Estado</span>
+                            <select 
+                                className="filter-select" 
+                                value={statusFilter}
+                                onChange={(e) => setStatusFilter(e.target.value)}
+                            >
+                                <option value="ALL">Todos los estados</option>
+                                <option value="ACTIVO">ACTIVO</option>
+                                <option value="INACTIVO">INACTIVO</option>
+                            </select>
+                        </div>
+                        {(searchQuery || specFilter !== 'ALL' || statusFilter !== 'ALL') && (
+                            <div className="filter-group action">
+                                <button className="btn-filter-clear" onClick={handleClearFilters}>
+                                    Limpiar
+                                </button>
+                            </div>
+                        )}
+                    </div>
+
+                    <div className="table-container">
+                        <table className="tecnicos-table">
+                            <thead>
+                                <tr>
+                                    <th>ID</th>
+                                    <th>Nombres</th>
+                                    <th>Apellidos</th>
+                                    <th>Especialidad</th>
+                                    <th>Estado</th>
+                                    <th>Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {loading ? (
+                                    <tr><td colSpan="6" style={{ textAlign: 'center' }}>Cargando...</td></tr>
+                                ) : filteredTecnicos.length === 0 ? (
+                                    <tr><td colSpan="6" style={{ textAlign: 'center' }}>No se encontraron técnicos con los filtros aplicados.</td></tr>
+                                ) : (
+                                    filteredTecnicos.map(tec => (
+                                        <tr key={tec.idTecnico}>
+                                            <td>{tec.idTecnico}</td>
+                                            <td>{tec.nombreTec}</td>
+                                            <td>{tec.apellidoTec}</td>
+                                            <td>{tec.especialidad ? tec.especialidad.nombreEspec : 'Sin especialidad'}</td>
+                                            <td>
+                                                <span className={`status-badge status-${tec.estadoTec?.toLowerCase()}`}>
+                                                    {tec.estadoTec}
+                                                </span>
+                                            </td>
+                                            <td>
+                                                <button className="btn-table-edit" onClick={() => handleOpenEditTecnico(tec)}>Editar</button>
+                                                <button className="btn-table-delete" onClick={() => handleDeleteTecnico(tec.idTecnico)}>Eliminar</button>
+                                            </td>
+                                        </tr>
+                                    ))
+                                )}
+                            </tbody>
+                        </table>
+                    </div>
+                </>
             ) : (
                 <div className="table-container">
                     <table className="especialidades-table">

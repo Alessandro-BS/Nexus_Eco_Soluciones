@@ -21,6 +21,9 @@ public class PlanificacionServicioService {
     @Autowired
     private OrdenServicioRepository ordenServicioRepository;
 
+    @Autowired
+    private com.nexus.eco.nexus_eco_api.repository.sqlserver.OrdenTrabajoRepository ordenTrabajoRepository;
+
     public List<PlanificacionServicio> findAll() {
         return repository.findAll();
     }
@@ -38,6 +41,13 @@ public class PlanificacionServicioService {
                 os.setEstadoOrden("PLANIFICADA");
                 ordenServicioRepository.save(os);
             });
+            
+            // Propagate state to OrdenTrabajo -> EN_PROCESO
+            ordenTrabajoRepository.findByOrdenServicioIdOrdenServicio(saved.getOrdenServicio().getIdOrdenServicio())
+                .forEach(ot -> {
+                    ot.setEstadoOt("EN_PROCESO");
+                    ordenTrabajoRepository.save(ot);
+                });
         }
         return saved;
     }
@@ -50,6 +60,13 @@ public class PlanificacionServicioService {
                     os.setEstadoOrden("EN_PROCESO");
                     ordenServicioRepository.save(os);
                 });
+                
+                // Revert state of OrdenTrabajo back to PENDIENTE
+                ordenTrabajoRepository.findByOrdenServicioIdOrdenServicio(ps.getOrdenServicio().getIdOrdenServicio())
+                    .forEach(ot -> {
+                        ot.setEstadoOt("PENDIENTE");
+                        ordenTrabajoRepository.save(ot);
+                    });
             }
         });
         repository.deleteById(id);
