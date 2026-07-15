@@ -206,21 +206,16 @@ const Dashboard = () => {
                 </div>
                 <div className="chart-wrapper">
                     <ResponsiveContainer width="100%" height={320}>
-                        <AreaChart data={ordenesFiltradas} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                            <defs>
-                                <linearGradient id="colorPrimary" x1="0" y1="0" x2="0" y2="1">
-                                    <stop offset="5%" stopColor="#6366f1" stopOpacity={0.4}/>
-                                    <stop offset="95%" stopColor="#6366f1" stopOpacity={0.0}/>
-                                </linearGradient>
-                            </defs>
+                        <BarChart data={ordenesFiltradas} margin={{ top: 10, right: 10, left: -20, bottom: 0 }} barSize={40}>
                             <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e7eb" />
                             <XAxis dataKey="periodo" tick={{ fill: '#6b7280', fontSize: 12 }} axisLine={false} tickLine={false} />
-                            <YAxis tick={{ fill: '#6b7280', fontSize: 12 }} axisLine={false} tickLine={false} />
+                            <YAxis tick={{ fill: '#6b7280', fontSize: 12 }} axisLine={false} tickLine={false} allowDecimals={false} />
                             <Tooltip 
+                                cursor={{fill: '#f1f5f9'}}
                                 contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)' }}
                             />
-                            <Area type="monotone" dataKey="cantidad" stroke="#6366f1" strokeWidth={3} fill="url(#colorPrimary)" />
-                        </AreaChart>
+                            <Bar dataKey="cantidad" fill="#6366f1" radius={[6, 6, 0, 0]} />
+                        </BarChart>
                     </ResponsiveContainer>
                 </div>
             </div>
