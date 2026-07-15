@@ -29,12 +29,12 @@ public class ClienteController {
     }
 
     @PostMapping
-    public Cliente create(@RequestBody Cliente entity) {
+    public Cliente create(@jakarta.validation.Valid @RequestBody Cliente entity) {
         return service.save(entity);
     }
 
     @PutMapping("/{id}")
-    public ResponseEntity<Cliente> update(@PathVariable Integer id, @RequestBody Cliente entity) {
+    public ResponseEntity<Cliente> update(@PathVariable Integer id, @jakarta.validation.Valid @RequestBody Cliente entity) {
         return service.findById(id).map(existing -> {
             // TODO: Añadir mapeo de campos específicos si es necesario
             entity.setIdCliente(id);

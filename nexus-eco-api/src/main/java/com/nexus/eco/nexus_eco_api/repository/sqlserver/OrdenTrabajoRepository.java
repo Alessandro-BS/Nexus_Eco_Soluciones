@@ -5,4 +5,5 @@ import org.springframework.stereotype.Repository;
 
 @Repository
 public interface OrdenTrabajoRepository extends JpaRepository<OrdenTrabajo, Integer> {
+    java.util.List<OrdenTrabajo> findByOrdenServicioIdOrdenServicio(Integer idOrdenServicio);
 }
