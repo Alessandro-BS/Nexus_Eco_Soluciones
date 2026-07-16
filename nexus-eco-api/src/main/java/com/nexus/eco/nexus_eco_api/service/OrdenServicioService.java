@@ -30,7 +30,11 @@ public class OrdenServicioService {
         OrdenServicio saved = repository.save(entity);
         if (saved.getSolicitudServicio() != null) {
             solicitudServicioRepository.findById(saved.getSolicitudServicio().getIdSolicitudServicio()).ifPresent(sol -> {
-                sol.setEstadoSol("APROBADA");
+                if ("CANCELADA".equals(saved.getEstadoOrden())) {
+                    sol.setEstadoSol("CANCELADA");
+                } else {
+                    sol.setEstadoSol("APROBADA");
+                }
                 solicitudServicioRepository.save(sol);
             });
         }

@@ -503,6 +503,23 @@ const Servicios = () => {
         }
     };
 
+    const handleCancel = async (ord) => {
+        if (window.confirm(`¿Está seguro de que desea CANCELAR la orden de servicio #${ord.idOrdenServicio}?`)) {
+            try {
+                const updatedOrder = {
+                    ...ord,
+                    estadoOrden: 'CANCELADA'
+                };
+                await updateOrdenServicio(ord.idOrdenServicio, updatedOrder);
+                alert("Orden cancelada exitosamente");
+                fetchOrdenes();
+            } catch (error) {
+                console.error("Error al cancelar orden", error);
+                alert("No se pudo cancelar el registro.");
+            }
+        }
+    };
+
     const handleGenerarOrden = async () => {
         const errors = {};
         if (!solicitud.idCliente) {
@@ -742,9 +759,14 @@ const Servicios = () => {
                                                     <MdEyeIcon size={16} style={{ verticalAlign: 'middle', marginRight: '4px' }} /> Detalles
                                                 </button>
                                                 {ord.estadoOrden === 'PENDIENTE' && (
-                                                    <button className="btn-table-pdf" onClick={() => handleGenerarPDFOrden(ord)} style={{ padding: '6px 12px', background: '#ecfdf5', color: '#059669', border: '1px solid #a7f3d0', borderRadius: '4px', cursor: 'pointer', fontSize: '12px', fontWeight: '600', display: 'inline-flex', alignItems: 'center', gap: '4px', marginRight: '6px' }} title="Descargar Contrato PDF">
-                                                        <MdPrint size={14} /> PDF
-                                                    </button>
+                                                    <>
+                                                        <button className="btn-table-pdf" onClick={() => handleGenerarPDFOrden(ord)} style={{ padding: '6px 12px', background: '#ecfdf5', color: '#059669', border: '1px solid #a7f3d0', borderRadius: '4px', cursor: 'pointer', fontSize: '12px', fontWeight: '600', display: 'inline-flex', alignItems: 'center', gap: '4px', marginRight: '6px' }} title="Descargar Contrato PDF">
+                                                            <MdPrint size={14} /> PDF
+                                                        </button>
+                                                        <button className="btn-table-cancel" onClick={() => handleCancel(ord)} style={{ padding: '6px 12px', background: '#fee2e2', color: '#991b1b', border: '1px solid #fca5a5', borderRadius: '4px', cursor: 'pointer', fontSize: '12px', fontWeight: '600', display: 'inline-flex', alignItems: 'center', gap: '4px', marginRight: '6px' }} title="Cancelar Orden">
+                                                            <MdClose size={14} /> Cancelar
+                                                        </button>
+                                                    </>
                                                 )}
                                                 {canEditDelete && (
                                                     <>
