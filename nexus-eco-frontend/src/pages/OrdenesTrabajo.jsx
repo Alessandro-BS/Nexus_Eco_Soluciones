@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { MdListAlt, MdSave, MdAdd, MdArrowBack } from 'react-icons/md';
-import { getOrdenesTrabajo, createOrdenTrabajo, updateOrdenTrabajo, deleteOrdenTrabajo, getOrdenes } from '../api/api';
+import { getOrdenesTrabajo, createOrdenTrabajo, updateOrdenTrabajo, deleteOrdenTrabajo, getOrdenes, getClientes } from '../api/api';
 import './OrdenesTrabajo.css';
 
 const formatOS = (id) => `OS-2026-${String(id).padStart(4, '0')}`;
@@ -54,7 +54,8 @@ const OrdenesTrabajo = () => {
         try {
             setLoading(true);
             const response = await getOrdenesTrabajo();
-            setOrdenesTrabajo(response.data);
+            const sortedData = [...response.data].sort((a, b) => b.idOrdenTrabajo - a.idOrdenTrabajo);
+            setOrdenesTrabajo(sortedData);
         } catch (error) {
             console.error("Error al obtener órdenes de trabajo", error);
         } finally {

@@ -56,16 +56,17 @@ const Planificacion = () => {
     }, [view]);
 
     const fetchPlanificaciones = async () => {
-        setLoading(true);
-        try {
-            const res = await getPlanificaciones();
-            setPlanificaciones(res.data);
-        } catch (error) {
-            console.error("Error fetching planificaciones", error);
-        } finally {
-            setLoading(false);
-        }
-    };
+         setLoading(true);
+         try {
+             const res = await getPlanificaciones();
+             const sortedData = [...res.data].sort((a, b) => b.idPlanificacionServicio - a.idPlanificacionServicio);
+             setPlanificaciones(sortedData);
+         } catch (error) {
+             console.error("Error fetching planificaciones", error);
+         } finally {
+             setLoading(false);
+         }
+     };
 
     const fetchFormData = async () => {
         try {

@@ -43,7 +43,8 @@ const Tecnicos = () => {
                 getTecnicos(),
                 getEspecialidades()
             ]);
-            setTecnicos(resTecnicos.data);
+            const sortedTecnicos = [...resTecnicos.data].sort((a, b) => b.idTecnico - a.idTecnico);
+            setTecnicos(sortedTecnicos);
             setEspecialidades(resEspecialidades.data);
         } catch (error) {
             console.error("Error al obtener datos", error);

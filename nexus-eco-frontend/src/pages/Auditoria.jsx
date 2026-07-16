@@ -86,7 +86,8 @@ const Auditoria = () => {
         setLoading(true);
         try {
             const res = await getEjecuciones();
-            setEjecuciones(res.data);
+            const sortedData = [...res.data].sort((a, b) => b.idEjecucionServicio - a.idEjecucionServicio);
+            setEjecuciones(sortedData);
         } catch (error) {
             console.error("Error fetching ejecuciones", error);
         } finally {

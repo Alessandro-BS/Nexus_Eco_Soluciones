@@ -36,7 +36,8 @@ const Informes = () => {
         try {
             setLoading(true);
             const response = await getInformes();
-            setInformes(response.data);
+            const sortedData = [...response.data].sort((a, b) => b.idInformeServicio - a.idInformeServicio);
+            setInformes(sortedData);
         } catch (error) {
             console.error("Error al obtener informes", error);
         } finally {

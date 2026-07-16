@@ -85,7 +85,8 @@ const Servicios = () => {
         try {
             setLoading(true);
             const res = await getOrdenes();
-            setOrdenes(res.data);
+            const sortedData = [...res.data].sort((a, b) => b.idOrdenServicio - a.idOrdenServicio);
+            setOrdenes(sortedData);
         } catch (error) {
             console.error("Error fetching ordenes", error);
         } finally {

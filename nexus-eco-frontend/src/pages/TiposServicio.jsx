@@ -40,7 +40,8 @@ const TiposServicio = () => {
         try {
             setLoading(true);
             const response = await getTiposServicio();
-            setTipos(response.data);
+            const sortedData = [...response.data].sort((a, b) => b.idTipoServicio - a.idTipoServicio);
+            setTipos(sortedData);
         } catch (error) {
             console.error("Error al obtener tipos de servicio", error);
         } finally {
