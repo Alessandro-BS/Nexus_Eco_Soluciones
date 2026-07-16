@@ -54,7 +54,8 @@ const OrdenesTrabajo = () => {
         try {
             setLoading(true);
             const response = await getOrdenesTrabajo();
-            setOrdenesTrabajo(response.data);
+            const sortedData = [...response.data].sort((a, b) => b.idOrdenTrabajo - a.idOrdenTrabajo);
+            setOrdenesTrabajo(sortedData);
         } catch (error) {
             console.error("Error al obtener órdenes de trabajo", error);
         } finally {

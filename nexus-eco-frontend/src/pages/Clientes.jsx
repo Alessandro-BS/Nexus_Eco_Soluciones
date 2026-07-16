@@ -49,7 +49,8 @@ const Clientes = () => {
         try {
             setLoading(true);
             const response = await getClientes();
-            setClientes(response.data);
+            const sortedData = [...response.data].sort((a, b) => b.idCliente - a.idCliente);
+            setClientes(sortedData);
         } catch (error) {
             console.error("Error al obtener clientes", error);
         } finally {

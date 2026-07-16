@@ -22,7 +22,8 @@ const Satisfaccion = () => {
         setLoading(true);
         try {
             const res = await getEncuestasSatisfaccion();
-            setEncuestas(res.data);
+            const sortedData = [...res.data].sort((a, b) => new Date(b.fechaRespuesta) - new Date(a.fechaRespuesta));
+            setEncuestas(sortedData);
         } catch (error) {
             console.error("Error fetching encuestas", error);
         } finally {

@@ -28,7 +28,8 @@ const Empleados = () => {
         try {
             setLoading(true);
             const response = await getEmpleados();
-            setEmpleados(response.data);
+            const sortedData = [...response.data].sort((a, b) => b.idEmpleado - a.idEmpleado);
+            setEmpleados(sortedData);
         } catch (error) {
             console.error("Error al obtener empleados", error);
         } finally {

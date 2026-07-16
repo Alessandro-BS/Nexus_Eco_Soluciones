@@ -60,8 +60,10 @@ const Ejecucion = () => {
                 getPlanificaciones(),
                 getEjecuciones()
             ]);
-            setPlanificaciones(resPlans.data);
-            setExecutions(resExecs.data);
+            const sortedPlans = [...resPlans.data].sort((a, b) => b.idPlanificacionServicio - a.idPlanificacionServicio);
+            const sortedExecs = [...resExecs.data].sort((a, b) => b.idEjecucionServicio - a.idEjecucionServicio);
+            setPlanificaciones(sortedPlans);
+            setExecutions(sortedExecs);
         } catch (error) {
             console.error("Error fetching data", error);
         } finally {
