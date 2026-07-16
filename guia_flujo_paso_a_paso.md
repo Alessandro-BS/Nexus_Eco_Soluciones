@@ -45,7 +45,8 @@ El cliente nos pide una cotización para desinfectar sus oficinas.
    * Haz clic en **"Agregar"**. (Verás que calcula el total con el 18% de IVA automáticamente).
 5. Haz clic en **"Guardar Solicitud"** en la parte superior.
 * **Resultado:** Se ha creado la **Orden de Servicio (OS-2026-0021)** en estado `PENDIENTE`.
-* **¡Observa esto!** Como la orden está nueva, los botones **Editar** y **Eliminar** están visibles en la tabla.
+* **¡Descargar Contrato Comercial PDF!** Al estar la orden en estado `PENDIENTE`, verás un botón **"PDF"** en la tabla y en la ficha de detalles. Al hacer clic, se descargará automáticamente la **Propuesta Comercial / Contrato** oficial en formato PDF para hacer llegar al cliente (con detalle de precios, términos comerciales y bloques de firmas).
+* **¡Observa esto!** Como la orden es nueva, los botones **Editar** y **Eliminar** están visibles en la tabla. Una vez que pase a planificación, el botón PDF y de edición se ocultarán por seguridad y control del flujo.
 
 ---
 
@@ -101,13 +102,14 @@ Un supervisor inspecciona el trabajo para dar la conformidad final.
 Es momento de entregarle el certificado e informe oficial al cliente.
 1. Al ser redirigido a **Informes**, verás el nuevo informe creado en estado `PENDIENTE`.
 2. Busca la fila correspondiente a *Laboratorios Fármacos S.A.* y haz clic en el botón verde **"PDF"**.
-3. Se abrirá una nueva ventana del navegador formateada con el diseño corporativo de **Econex**:
-   * Logo y membrete del sistema.
+3. **Descarga Automática Instantánea:** El sistema procesará el informe virtualmente y **iniciará la descarga directa del archivo PDF** a tu computadora (sin abrir ventanas emergentes molestas ni requerir el diálogo de impresión manual del navegador). El archivo se guardará automáticamente con un nombre descriptivo como `Reporte_Econexus_INF-2026-XXXX.pdf`.
+4. **Diseño de Presentación Impecable:** Al abrir el PDF verás:
+   * Logo y membrete oficial de **Econexus**.
    * Datos fiscales del cliente traídos de SQL Server.
    * Tabla con el desglose de los servicios aplicados y montos de dinero.
    * Observaciones y fecha reportada por el técnico en campo.
    * **El dictamen de calidad:** Las 5 estrellas doradas (★★★★★) obtenidas en la auditoría.
-4. Presiona guardar como PDF en tu navegador y ¡listo! Tienes el reporte oficial en tus archivos.
+   * **Bloque de Firmas Unido:** Las firmas del Supervisor y el Cliente se mantienen siempre juntas en una sola hoja (evitando saltos de página antiestéticos).
 
 ---
 

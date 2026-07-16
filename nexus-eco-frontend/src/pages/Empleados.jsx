@@ -9,6 +9,10 @@ const Empleados = () => {
     const [showModal, setShowModal] = useState(false);
     const [editingId, setEditingId] = useState(null);
 
+    // Filters state
+    const [searchQuery, setSearchQuery] = useState('');
+    const [areaFilter, setAreaFilter] = useState('ALL');
+
     const [form, setForm] = useState({
         nombreEmp: '',
         apellidoEmp: '',
@@ -24,7 +28,8 @@ const Empleados = () => {
         try {
             setLoading(true);
             const response = await getEmpleados();
-            setEmpleados(response.data);
+            const sortedData = [...response.data].sort((a, b) => b.idEmpleado - a.idEmpleado);
+            setEmpleados(sortedData);
         } catch (error) {
             console.error("Error al obtener empleados", error);
         } finally {
@@ -97,6 +102,23 @@ const Empleados = () => {
         }
     };
 
+    const filteredEmpleados = empleados.filter(emp => {
+        const fullName = `${emp.nombreEmp} ${emp.apellidoEmp}`.toLowerCase();
+        const cargo = (emp.cargoEmp || '').toLowerCase();
+        const matchesSearch = fullName.includes(searchQuery.toLowerCase()) || 
+                              cargo.includes(searchQuery.toLowerCase()) ||
+                              emp.idEmpleado.toString() === searchQuery;
+                              
+        const matchesArea = areaFilter === 'ALL' || emp.area === areaFilter;
+        
+        return matchesSearch && matchesArea;
+    });
+
+    const handleClearFilters = () => {
+        setSearchQuery('');
+        setAreaFilter('ALL');
+    };
+
     return (
         <div className="empleados-page">
             <div className="breadcrumb">ADMINISTRACIÓN / EMPLEADOS</div>
@@ -111,6 +133,39 @@ const Empleados = () => {
                         <MdAdd size={18} style={{ verticalAlign: 'middle', marginRight: '5px' }}/> Nuevo Empleado
                     </button>
                 </div>
+            </div>
+
+            <div className="filters-bar">
+                <div className="filter-group search">
+                    <span className="filter-label">Buscar Empleado</span>
+                    <input 
+                        type="text" 
+                        className="filter-input" 
+                        placeholder="Buscar por nombre, cargo o ID..." 
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                    />
+                </div>
+                <div className="filter-group">
+                    <span className="filter-label">Área</span>
+                    <select 
+                        className="filter-select" 
+                        value={areaFilter}
+                        onChange={(e) => setAreaFilter(e.target.value)}
+                    >
+                        <option value="ALL">Todas las áreas</option>
+                        {Array.from(new Set(empleados.map(emp => emp.area).filter(Boolean))).map(area => (
+                            <option key={area} value={area}>{area}</option>
+                        ))}
+                    </select>
+                </div>
+                {(searchQuery || areaFilter !== 'ALL') && (
+                    <div className="filter-group action">
+                        <button className="btn-filter-clear" onClick={handleClearFilters}>
+                            Limpiar
+                        </button>
+                    </div>
+                )}
             </div>
 
             <div className="table-container">
@@ -128,10 +183,10 @@ const Empleados = () => {
                     <tbody>
                         {loading ? (
                             <tr><td colSpan="6" style={{ textAlign: 'center' }}>Cargando...</td></tr>
-                        ) : empleados.length === 0 ? (
-                            <tr><td colSpan="6" style={{ textAlign: 'center' }}>No hay empleados registrados.</td></tr>
+                        ) : filteredEmpleados.length === 0 ? (
+                            <tr><td colSpan="6" style={{ textAlign: 'center' }}>No se encontraron empleados con los filtros aplicados.</td></tr>
                         ) : (
-                            empleados.map(emp => (
+                            filteredEmpleados.map(emp => (
                                 <tr key={emp.idEmpleado}>
                                     <td>{emp.idEmpleado}</td>
                                     <td>{emp.nombreEmp}</td>

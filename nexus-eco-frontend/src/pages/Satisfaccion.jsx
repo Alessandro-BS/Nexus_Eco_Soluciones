@@ -9,6 +9,11 @@ const Satisfaccion = () => {
     const [encuestas, setEncuestas] = useState([]);
     const [loading, setLoading] = useState(false);
 
+    // Filters state
+    const [searchQuery, setSearchQuery] = useState('');
+    const [qualityFilter, setQualityFilter] = useState('ALL');
+    const [professionalismFilter, setProfessionalismFilter] = useState('ALL');
+
     useEffect(() => {
         fetchEncuestas();
     }, []);
@@ -17,7 +22,8 @@ const Satisfaccion = () => {
         setLoading(true);
         try {
             const res = await getEncuestasSatisfaccion();
-            setEncuestas(res.data);
+            const sortedData = [...res.data].sort((a, b) => new Date(b.fechaRespuesta) - new Date(a.fechaRespuesta));
+            setEncuestas(sortedData);
         } catch (error) {
             console.error("Error fetching encuestas", error);
         } finally {
@@ -47,6 +53,30 @@ const Satisfaccion = () => {
             }
         }
         return stars;
+    };
+
+    const filteredEncuestas = encuestas.filter(enc => {
+        const clientName = (enc.nombreCliente || `Cliente ID: ${enc.idCliente || 'N/A'}`).toLowerCase();
+        const service = (enc.tipoServicioRecibido || '').toLowerCase();
+        const comments = (enc.sugerenciasComentarios || enc.comentarios || '').toLowerCase();
+        
+        const matchesSearch = clientName.includes(searchQuery.toLowerCase()) || 
+                              service.includes(searchQuery.toLowerCase()) || 
+                              comments.includes(searchQuery.toLowerCase());
+                              
+        const quality = enc.calidadGeneral || enc.calidadServicio;
+        const matchesQuality = qualityFilter === 'ALL' || (quality && quality.toString() === qualityFilter);
+        
+        const professionalism = enc.amabilidadProfesionalismo || enc.profesionalismo;
+        const matchesProf = professionalismFilter === 'ALL' || (professionalism && professionalism.toString() === professionalismFilter);
+        
+        return matchesSearch && matchesQuality && matchesProf;
+    });
+
+    const handleClearFilters = () => {
+        setSearchQuery('');
+        setQualityFilter('ALL');
+        setProfessionalismFilter('ALL');
     };
 
     return (
@@ -81,6 +111,56 @@ const Satisfaccion = () => {
                 </div>
             </div>
 
+            <div className="filters-bar">
+                <div className="filter-group search">
+                    <span className="filter-label">Buscar Encuesta</span>
+                    <input 
+                        type="text" 
+                        className="filter-input" 
+                        placeholder="Buscar por cliente, servicio o comentarios..." 
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                    />
+                </div>
+                <div className="filter-group">
+                    <span className="filter-label">Calidad</span>
+                    <select 
+                        className="filter-select" 
+                        value={qualityFilter}
+                        onChange={(e) => setQualityFilter(e.target.value)}
+                    >
+                        <option value="ALL">Cualquier Calificación</option>
+                        <option value="5">5 ⭐⭐⭐⭐⭐</option>
+                        <option value="4">4 ⭐⭐⭐⭐</option>
+                        <option value="3">3 ⭐⭐⭐</option>
+                        <option value="2">2 ⭐⭐</option>
+                        <option value="1">1 ⭐</option>
+                    </select>
+                </div>
+                <div className="filter-group">
+                    <span className="filter-label">Amabilidad/Profesionalismo</span>
+                    <select 
+                        className="filter-select" 
+                        value={professionalismFilter}
+                        onChange={(e) => setProfessionalismFilter(e.target.value)}
+                    >
+                        <option value="ALL">Cualquier Calificación</option>
+                        <option value="5">5 ⭐⭐⭐⭐⭐</option>
+                        <option value="4">4 ⭐⭐⭐⭐</option>
+                        <option value="3">3 ⭐⭐⭐</option>
+                        <option value="2">2 ⭐⭐</option>
+                        <option value="1">1 ⭐</option>
+                    </select>
+                </div>
+                {(searchQuery || qualityFilter !== 'ALL' || professionalismFilter !== 'ALL') && (
+                    <div className="filter-group action">
+                        <button className="btn-filter-clear" onClick={handleClearFilters}>
+                            Limpiar
+                        </button>
+                    </div>
+                )}
+            </div>
+
             <div className="table-container">
                 <table className="satisfaccion-table">
                     <thead>
@@ -97,10 +177,10 @@ const Satisfaccion = () => {
                     <tbody>
                         {loading ? (
                             <tr><td colSpan="7" style={{ textAlign: 'center', padding: '20px' }}>Cargando datos de MongoDB...</td></tr>
-                        ) : encuestas.length === 0 ? (
-                            <tr><td colSpan="7" style={{ textAlign: 'center', padding: '20px' }}>No hay encuestas registradas en MongoDB. Responde el Google Forms para verlas reflejadas.</td></tr>
+                        ) : filteredEncuestas.length === 0 ? (
+                            <tr><td colSpan="7" style={{ textAlign: 'center', padding: '20px' }}>No se encontraron encuestas con los filtros aplicados.</td></tr>
                         ) : (
-                            encuestas.map(enc => (
+                            filteredEncuestas.map(enc => (
                                 <tr key={enc.id}>
                                     <td style={{ fontSize: '13px' }}>
                                         {enc.fechaRespuesta ? new Date(enc.fechaRespuesta).toLocaleString() : '-'}

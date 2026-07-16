@@ -29,12 +29,12 @@ public class TecnicoController {
     }
 
     @PostMapping
-    public Tecnico create(@RequestBody Tecnico entity) {
+    public Tecnico create(@jakarta.validation.Valid @RequestBody Tecnico entity) {
         return service.save(entity);
     }
 
     @PutMapping("/{id}")
-    public ResponseEntity<Tecnico> update(@PathVariable Integer id, @RequestBody Tecnico entity) {
+    public ResponseEntity<Tecnico> update(@PathVariable Integer id, @jakarta.validation.Valid @RequestBody Tecnico entity) {
         return service.findById(id).map(existing -> {
             // TODO: Añadir mapeo de campos específicos si es necesario
             entity.setIdTecnico(id);

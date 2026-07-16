@@ -1,7 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import { MdSettingsInputComponent, MdSave, MdAdd, MdEdit, MdDelete, MdClose } from 'react-icons/md';
 import { getTiposServicio, createTipoServicio, updateTipoServicio, deleteTipoServicio } from '../api/api';
+import { useForm } from 'react-hook-form';
+import { yupResolver } from '@hookform/resolvers/yup';
+import * as yup from 'yup';
 import './TiposServicio.css';
+
+const schema = yup.object().shape({
+    nombreServicio: yup.string().required('El nombre es obligatorio').max(100, 'Máximo 100 caracteres'),
+    descripcionTs: yup.string().nullable(),
+    precioBase: yup.number().typeError('Debe ser un número válido').required('El precio base es obligatorio').positive('El precio debe ser mayor a 0')
+});
 
 const TiposServicio = () => {
     const [tipos, setTipos] = useState([]);
@@ -9,10 +18,18 @@ const TiposServicio = () => {
     const [showModal, setShowModal] = useState(false);
     const [editingId, setEditingId] = useState(null);
 
-    const [form, setForm] = useState({
-        nombreServicio: '',
-        descripcionTs: '',
-        precioBase: ''
+    // Filters state
+    const [searchQuery, setSearchQuery] = useState('');
+    const [minPrice, setMinPrice] = useState('');
+    const [maxPrice, setMaxPrice] = useState('');
+
+    const { register, handleSubmit, reset, setValue, formState: { errors } } = useForm({
+        resolver: yupResolver(schema),
+        defaultValues: {
+            nombreServicio: '',
+            descripcionTs: '',
+            precioBase: ''
+        }
     });
 
     useEffect(() => {
@@ -23,7 +40,8 @@ const TiposServicio = () => {
         try {
             setLoading(true);
             const response = await getTiposServicio();
-            setTipos(response.data);
+            const sortedData = [...response.data].sort((a, b) => b.idTipoServicio - a.idTipoServicio);
+            setTipos(sortedData);
         } catch (error) {
             console.error("Error al obtener tipos de servicio", error);
         } finally {
@@ -31,23 +49,17 @@ const TiposServicio = () => {
         }
     };
 
-    const handleChange = (e) => {
-        setForm({ ...form, [e.target.name]: e.target.value });
-    };
-
     const handleOpenCreate = () => {
         setEditingId(null);
-        setForm({ nombreServicio: '', descripcionTs: '', precioBase: '' });
+        reset();
         setShowModal(true);
     };
 
     const handleOpenEdit = (t) => {
         setEditingId(t.idTipoServicio);
-        setForm({
-            nombreServicio: t.nombreServicio || '',
-            descripcionTs: t.descripcionTs || '',
-            precioBase: t.precioBase || ''
-        });
+        setValue('nombreServicio', t.nombreServicio || '');
+        setValue('descripcionTs', t.descripcionTs || '');
+        setValue('precioBase', t.precioBase || '');
         setShowModal(true);
     };
 
@@ -64,18 +76,12 @@ const TiposServicio = () => {
         }
     };
 
-    const handleSave = async (e) => {
-        e.preventDefault();
-        if (!form.nombreServicio || !form.precioBase) {
-            alert("Nombre del Servicio y Precio Base son requeridos.");
-            return;
-        }
-
+    const onSubmit = async (data) => {
         const payload = {
             idTipoServicio: editingId,
-            nombreServicio: form.nombreServicio,
-            descripcionTs: form.descripcionTs,
-            precioBase: parseFloat(form.precioBase)
+            nombreServicio: data.nombreServicio,
+            descripcionTs: data.descripcionTs,
+            precioBase: parseFloat(data.precioBase)
         };
 
         try {
@@ -90,12 +96,33 @@ const TiposServicio = () => {
             fetchTipos();
         } catch (error) {
             console.error("Error al guardar tipo de servicio", error);
-            alert("Ocurrió un error al guardar el tipo de servicio.");
+            if (error.response?.data && typeof error.response.data === 'object') {
+                alert("Error de validación del servidor:\n" + JSON.stringify(error.response.data, null, 2));
+            } else {
+                alert("Ocurrió un error al guardar el tipo de servicio.");
+            }
         }
     };
 
     const formatCurrency = (amount) => {
         return new Intl.NumberFormat('es-PE', { style: 'currency', currency: 'PEN' }).format(amount);
+    };
+
+    const filteredTipos = tipos.filter(t => {
+        const matchesSearch = t.nombreServicio.toLowerCase().includes(searchQuery.toLowerCase()) || 
+                              (t.descripcionTs || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+                              t.idTipoServicio.toString() === searchQuery;
+                              
+        const matchesMin = minPrice === '' || t.precioBase >= parseFloat(minPrice);
+        const matchesMax = maxPrice === '' || t.precioBase <= parseFloat(maxPrice);
+        
+        return matchesSearch && matchesMin && matchesMax;
+    });
+
+    const handleClearFilters = () => {
+        setSearchQuery('');
+        setMinPrice('');
+        setMaxPrice('');
     };
 
     return (
@@ -114,6 +141,46 @@ const TiposServicio = () => {
                 </div>
             </div>
 
+            <div className="filters-bar">
+                <div className="filter-group search">
+                    <span className="filter-label">Buscar Servicio</span>
+                    <input 
+                        type="text" 
+                        className="filter-input" 
+                        placeholder="Buscar por nombre, descripción o ID..." 
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                    />
+                </div>
+                <div className="filter-group">
+                    <span className="filter-label">Precio Mínimo (S/)</span>
+                    <input 
+                        type="number" 
+                        className="filter-input" 
+                        placeholder="Min..." 
+                        value={minPrice}
+                        onChange={(e) => setMinPrice(e.target.value)}
+                    />
+                </div>
+                <div className="filter-group">
+                    <span className="filter-label">Precio Máximo (S/)</span>
+                    <input 
+                        type="number" 
+                        className="filter-input" 
+                        placeholder="Max..." 
+                        value={maxPrice}
+                        onChange={(e) => setMaxPrice(e.target.value)}
+                    />
+                </div>
+                {(searchQuery || minPrice !== '' || maxPrice !== '') && (
+                    <div className="filter-group action">
+                        <button className="btn-filter-clear" onClick={handleClearFilters}>
+                            Limpiar
+                        </button>
+                    </div>
+                )}
+            </div>
+
             <div className="table-container">
                 <table className="tipos-table">
                     <thead>
@@ -128,10 +195,10 @@ const TiposServicio = () => {
                     <tbody>
                         {loading ? (
                             <tr><td colSpan="5" style={{ textAlign: 'center' }}>Cargando...</td></tr>
-                        ) : tipos.length === 0 ? (
-                            <tr><td colSpan="5" style={{ textAlign: 'center' }}>No hay servicios registrados.</td></tr>
+                        ) : filteredTipos.length === 0 ? (
+                            <tr><td colSpan="5" style={{ textAlign: 'center' }}>No se encontraron servicios con los filtros aplicados.</td></tr>
                         ) : (
-                            tipos.map(t => (
+                            filteredTipos.map(t => (
                                 <tr key={t.idTipoServicio}>
                                     <td>{t.idTipoServicio}</td>
                                     <td style={{ fontWeight: '600' }}>{t.nombreServicio}</td>
@@ -157,27 +224,44 @@ const TiposServicio = () => {
                                 <MdClose size={20} />
                             </button>
                         </div>
-                        <form onSubmit={handleSave}>
+                        <form onSubmit={handleSubmit(onSubmit)}>
                             <div className="form-group">
-                                <label>Nombre del Servicio</label>
-                                <input type="text" name="nombreServicio" value={form.nombreServicio} onChange={handleChange} required />
+                                <label>Nombre del Servicio <span style={{color: 'red'}}>*</span></label>
+                                <input 
+                                    type="text" 
+                                    className={errors.nombreServicio ? 'input-error' : ''}
+                                    {...register('nombreServicio')} 
+                                />
+                                {errors.nombreServicio && <span className="error-message">{errors.nombreServicio.message}</span>}
                             </div>
                             <div className="form-group">
                                 <label>Descripción</label>
-                                <textarea name="descripcionTs" value={form.descripcionTs} onChange={handleChange} rows="3" style={{
-                                    width: '100%',
-                                    padding: '10px 12px',
-                                    border: '1px solid #cbd5e1',
-                                    borderRadius: '4px',
-                                    fontFamily: 'inherit',
-                                    fontSize: '14px',
-                                    outline: 'none',
-                                    resize: 'vertical'
-                                }} />
+                                <textarea 
+                                    className={errors.descripcionTs ? 'input-error' : ''}
+                                    {...register('descripcionTs')} 
+                                    rows="3" 
+                                    style={{
+                                        width: '100%',
+                                        padding: '10px 12px',
+                                        border: '1px solid #cbd5e1',
+                                        borderRadius: '4px',
+                                        fontFamily: 'inherit',
+                                        fontSize: '14px',
+                                        outline: 'none',
+                                        resize: 'vertical'
+                                    }} 
+                                />
+                                {errors.descripcionTs && <span className="error-message">{errors.descripcionTs.message}</span>}
                             </div>
                             <div className="form-group">
-                                <label>Precio Base (S/)</label>
-                                <input type="number" name="precioBase" value={form.precioBase} onChange={handleChange} step="0.01" min="0" required />
+                                <label>Precio Base (S/) <span style={{color: 'red'}}>*</span></label>
+                                <input 
+                                    type="number" 
+                                    className={errors.precioBase ? 'input-error' : ''}
+                                    step="0.01" 
+                                    {...register('precioBase')} 
+                                />
+                                {errors.precioBase && <span className="error-message">{errors.precioBase.message}</span>}
                             </div>
                             <div className="modal-actions">
                                 <button type="button" className="btn-cancelar" onClick={() => setShowModal(false)}>Cancelar</button>

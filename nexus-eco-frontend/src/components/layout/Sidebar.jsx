@@ -26,7 +26,7 @@ export const Sidebar = () => {
             flexDirection: 'column'
         }}>
             <div style={{ padding: '24px 20px' }}>
-                <h2 style={{ margin: 0, color: '#0f172a', fontSize: '22px', fontWeight: '800' }}>Econex<span style={{ color: '#0b7a75' }}>us</span></h2>
+                <h2 style={{ margin: 0, color: '#0f172a', fontSize: '22px', fontWeight: '800' }}>Econex<span style={{ color: '#4f46e5' }}>us</span></h2>
                 <div style={{ fontSize: '10px', color: '#64748b', fontWeight: '600', letterSpacing: '0.5px', marginTop: '4px', textTransform: 'uppercase' }}>Admin Dashboard</div>
             </div>
 
@@ -79,16 +79,16 @@ export const Sidebar = () => {
                 }
                 .nav-link.active {
                     background-color: #f1f5f9;
-                    color: #0f172a;
+                    color: #4f46e5;
                     font-weight: 600;
-                    border-left: 3px solid #0b7a75;
+                    border-left: 3px solid #4f46e5;
                 }
                 .nav-icon {
                     margin-right: 12px;
                     color: #64748b;
                 }
                 .nav-link.active .nav-icon {
-                    color: #0b7a75;
+                    color: #4f46e5;
                 }
             `}</style>
         </aside>
